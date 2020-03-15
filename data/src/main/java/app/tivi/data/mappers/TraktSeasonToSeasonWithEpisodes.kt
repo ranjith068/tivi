@@ -18,16 +18,16 @@ package app.tivi.data.mappers
 
 import app.tivi.data.entities.Episode
 import app.tivi.data.entities.Season
+import com.uwetrottmann.trakt5.entities.Season as TraktSeason
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.uwetrottmann.trakt5.entities.Season as TraktSeason
 
 @Singleton
 class TraktSeasonToSeasonWithEpisodes @Inject constructor(
     private val seasonMapper: TraktSeasonToSeason,
     private val episoderMapper: TraktEpisodeToEpisode
 ) : Mapper<TraktSeason, Pair<Season, List<Episode>>> {
-    override fun map(from: TraktSeason): Pair<Season, List<Episode>> {
-        return seasonMapper.map(from) to from.episodes.map(episoderMapper::map)
+    override suspend fun map(from: TraktSeason): Pair<Season, List<Episode>> {
+        return seasonMapper.map(from) to from.episodes.map { episoderMapper.map(it) }
     }
 }

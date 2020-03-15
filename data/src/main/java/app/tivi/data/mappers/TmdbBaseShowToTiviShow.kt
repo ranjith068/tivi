@@ -23,11 +23,9 @@ import javax.inject.Singleton
 
 @Singleton
 class TmdbBaseShowToTiviShow @Inject constructor() : Mapper<BaseTvShow, TiviShow> {
-    override fun map(from: BaseTvShow) = TiviShow(
-            tmdbId = from.id,
-            title = from.name,
-            summary = from.overview,
-            tmdbBackdropPath = from.backdrop_path,
-            tmdbPosterPath = from.poster_path
+    override suspend fun map(from: BaseTvShow) = TiviShow(
+        tmdbId = from.id,
+        title = from.name,
+        summary = from.overview
     )
 }

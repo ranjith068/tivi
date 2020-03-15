@@ -15,18 +15,29 @@
  *
  */
 
+import app.tivi.buildsrc.Libs
+
 apply plugin: 'kotlin'
 
+apply plugin: 'kotlin-kapt'
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
+
 dependencies {
-    compile project(":base")
-    compile project(":trakt")
-    compile project(":tmdb")
+    api project(':base')
+    api project(':trakt')
+    api project(':tmdb')
 
-    compile "androidx.room:room-common:${versions.androidx.room}"
-    compile "androidx.paging:paging-common:${versions.androidx.paging}"
+    api Libs.AndroidX.Room.common
+    implementation Libs.AndroidX.collection
 
-    compile "io.reactivex.rxjava2:rxjava:${versions.rx}"
-    compile "io.reactivex.rxjava2:rxkotlin:${versions.rxkotlin}"
+    api Libs.store
 
-    compile "org.threeten:threetenbp:${versions.threetenbp}:no-tzdb"
+    api Libs.AndroidX.Paging.common
+
+    api Libs.threeTenBpNoTzdb
+
+    kapt Libs.Dagger.compiler
 }

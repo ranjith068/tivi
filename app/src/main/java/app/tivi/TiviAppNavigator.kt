@@ -16,12 +16,10 @@
 
 package app.tivi
 
-import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import app.tivi.settings.SettingsActivity
-import app.tivi.showdetails.ShowDetailsActivity
+import app.tivi.home.HomeActivity
 import app.tivi.trakt.TraktConstants
 import javax.inject.Inject
 
@@ -29,24 +27,13 @@ open class TiviAppNavigator @Inject constructor(
     private val context: Context
 ) : AppNavigator {
     override fun provideAuthHandleResponseIntent(requestCode: Int): PendingIntent {
-        val intent = Intent(TraktConstants.INTENT_ACTION_HANDLE_AUTH_RESPONSE)
+        val intent = Intent(context, HomeActivity::class.java).apply {
+            action = TraktConstants.INTENT_ACTION_HANDLE_AUTH_RESPONSE
+        }
         return PendingIntent.getActivity(context, requestCode, intent, 0)
     }
 
-    override fun startShowDetails(id: Long, sharedElements: SharedElementHelper?) {
-        context.startActivity(ShowDetailsActivity.createIntent(context, id))
-    }
-
-    override fun startSettings() {
-        context.startActivity(Intent(context, SettingsActivity::class.java))
-    }
-}
-
-internal class TiviAppActivityNavigator(private val activity: Activity) : TiviAppNavigator(activity) {
-    override fun startShowDetails(id: Long, sharedElements: SharedElementHelper?) {
-        activity.startActivityForResult(
-                ShowDetailsActivity.createIntent(activity, id),
-                0,
-                sharedElements?.applyToIntent(activity))
+    override fun startLogin() {
+        throw IllegalArgumentException("This app navigator can't handle login calls")
     }
 }

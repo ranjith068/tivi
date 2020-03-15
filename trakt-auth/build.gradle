@@ -15,17 +15,24 @@
  *
  */
 
+import app.tivi.buildsrc.Libs
+
 apply plugin: 'com.android.library'
 
 apply plugin: 'kotlin-android'
+
 apply plugin: 'kotlin-kapt'
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
 
 android {
     compileSdkVersion buildConfig.compileSdk
 
     defaultConfig {
         minSdkVersion buildConfig.minSdk
-        manifestPlaceholders += ['appAuthRedirectScheme': 'app.tivi']
+        manifestPlaceholders += ['appAuthRedirectScheme': 'empty']
     }
 
     compileOptions {
@@ -35,20 +42,15 @@ android {
 }
 
 dependencies {
-    implementation project(":base")
-    implementation project(":base-android")
-    implementation project(":data")
-    implementation project(":trakt")
-    implementation project(':datasources')
-    implementation project(':interactors')
+    implementation project(':base')
+    implementation project(':base-android')
+    implementation project(':data')
+    api project(':trakt')
 
-    api "io.reactivex.rxjava2:rxjava:${versions.rx}"
-    implementation "io.reactivex.rxjava2:rxkotlin:${versions.rxkotlin}"
+    kapt Libs.Dagger.compiler
 
-    kapt "com.google.dagger:dagger-compiler:${versions.dagger}"
+    implementation Libs.AndroidX.browser
+    implementation Libs.AndroidX.coreKtx
 
-    implementation "androidx.core:core-ktx:${versions.androidx.core_ktx}"
-
-    api "net.openid:appauth:0.7.1"
-    implementation "androidx.browser:browser:${versions.androidx.browser}"
+    api Libs.appauth
 }

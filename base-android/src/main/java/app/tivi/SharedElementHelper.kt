@@ -16,35 +16,18 @@
 
 package app.tivi
 
-import android.app.Activity
-import android.os.Bundle
 import android.view.View
-import androidx.core.app.ActivityOptionsCompat
-import androidx.core.util.Pair
-import androidx.fragment.app.FragmentTransaction
-import java.lang.ref.WeakReference
+import androidx.collection.ArrayMap
 
 class SharedElementHelper {
-    private val sharedElementViews = mutableMapOf<WeakReference<View>, String?>()
+    private val _sharedElements = ArrayMap<View, String?>()
 
-    fun addSharedElement(view: View, name: String? = null) {
-        sharedElementViews.put(WeakReference(view), name ?: view.transitionName)
+    val sharedElements: Map<View, String?>
+        get() = _sharedElements
+
+    fun addSharedElement(view: View, transitionName: String? = view.transitionName) {
+        _sharedElements[view] = transitionName ?: view.transitionName
     }
 
-    fun applyToTransaction(tx: FragmentTransaction) {
-        for ((viewRef, customTransitionName) in sharedElementViews) {
-            viewRef.get()?.apply {
-                tx.addSharedElement(this, customTransitionName!!)
-            }
-        }
-    }
-
-    fun applyToIntent(activity: Activity): Bundle? {
-        return ActivityOptionsCompat.makeSceneTransitionAnimation(
-                activity,
-                *sharedElementViews.map { Pair(it.key.get(), it.value) }.toList().toTypedArray()
-        ).toBundle()
-    }
-
-    fun isEmpty(): Boolean = sharedElementViews.isEmpty()
+    fun isEmpty(): Boolean = _sharedElements.isEmpty
 }

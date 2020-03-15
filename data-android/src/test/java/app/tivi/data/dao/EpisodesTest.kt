@@ -17,61 +17,113 @@
 package app.tivi.data.dao
 
 import android.database.sqlite.SQLiteConstraintException
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import app.tivi.data.DaggerTestComponent
+import app.tivi.data.TestDataSourceModule
+import app.tivi.data.TiviDatabase
 import app.tivi.data.daos.EpisodesDao
-import app.tivi.utils.BaseDatabaseTest
-import app.tivi.utils.deleteSeason
-import app.tivi.utils.episodeOne
-import app.tivi.utils.insertSeason
+import app.tivi.data.daos.SeasonsDao
 import app.tivi.utils.insertShow
+import app.tivi.utils.s1
+import app.tivi.utils.s1_episodes
+import app.tivi.utils.s1e1
+import app.tivi.utils.s1e2
+import app.tivi.utils.s1e3
 import app.tivi.utils.showId
+import javax.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestCoroutineScope
+import kotlinx.coroutines.test.runBlockingTest
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.CoreMatchers.nullValue
-import org.junit.Assert.assertThat
+import org.hamcrest.MatcherAssert.assertThat
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
-class EpisodesTest : BaseDatabaseTest() {
-    private lateinit var episodeDao: EpisodesDao
+@RunWith(RobolectricTestRunner::class)
+class EpisodesTest {
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
-    override fun setup() {
-        super.setup()
-        episodeDao = db.episodesDao()
-        // We'll assume that there's a show and season in the db
-        insertShow(db)
-        insertSeason(db)
+    private val testScope = TestCoroutineScope()
+
+    @Inject lateinit var database: TiviDatabase
+    @Inject lateinit var episodeDao: EpisodesDao
+    @Inject lateinit var seasonsDao: SeasonsDao
+
+    @Before
+    fun setup() {
+        DaggerTestComponent.builder()
+            .testDataSourceModule(TestDataSourceModule(storeScope = testScope))
+            .build()
+            .inject(this)
+
+        runBlocking {
+            // We'll assume that there's a show and season in the db
+            insertShow(database)
+            seasonsDao.insert(s1)
+        }
     }
 
     @Test
-    fun insert() {
-        episodeDao.insert(episodeOne)
-        assertThat(episodeDao.episodeWithId(episodeOne.id), `is`(episodeOne))
+    fun insert() = testScope.runBlockingTest {
+        episodeDao.insert(s1e1)
+        assertThat(episodeDao.episodeWithId(s1e1.id), `is`(s1e1))
     }
 
     @Test(expected = SQLiteConstraintException::class)
-    fun insert_withSameTraktId() {
-        episodeDao.insert(episodeOne)
+    fun insert_withSameTraktId() = testScope.runBlockingTest {
+        episodeDao.insert(s1e1)
         // Make a copy with a 0 id
-        val copy = episodeOne.copy(id = 0)
+        val copy = s1e1.copy(id = 0)
         episodeDao.insert(copy)
     }
 
     @Test
-    fun delete() {
-        episodeDao.insert(episodeOne)
-        episodeDao.delete(episodeOne)
-        assertThat(episodeDao.episodeWithId(episodeOne.id), `is`(nullValue()))
+    fun delete() = testScope.runBlockingTest {
+        episodeDao.insert(s1e1)
+        episodeDao.deleteEntity(s1e1)
+        assertThat(episodeDao.episodeWithId(s1e1.id), `is`(nullValue()))
     }
 
     @Test
-    fun deleteSeason_deletesEpisode() {
-        episodeDao.insert(episodeOne)
+    fun deleteSeason_deletesEpisode() = testScope.runBlockingTest {
+        episodeDao.insert(s1e1)
         // Now delete season
-        deleteSeason(db)
-        assertThat(episodeDao.episodeWithId(episodeOne.id), `is`(nullValue()))
+        seasonsDao.deleteEntity(s1)
+        assertThat(episodeDao.episodeWithId(s1e1.id), `is`(nullValue()))
     }
 
     @Test
-    fun showIdForEpisodeId() {
-        episodeDao.insert(episodeOne)
-        assertThat(episodeDao.showIdForEpisodeId(episodeOne.id), `is`(showId))
+    fun showIdForEpisodeId() = testScope.runBlockingTest {
+        episodeDao.insert(s1e1)
+        assertThat(episodeDao.showIdForEpisodeId(s1e1.id), `is`(showId))
+    }
+
+    @Test
+    fun nextAiredEpisodeAfter() = testScope.runBlockingTest {
+        episodeDao.insertAll(s1_episodes)
+
+        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 0, 0)
+            .first()?.episode, `is`(s1e1))
+
+        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 1, 0)
+            .first()?.episode, `is`(s1e2))
+
+        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 1, 1)
+            .first()?.episode, `is`(s1e3))
+
+        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 1, 2)
+            .first()?.episode, nullValue())
+    }
+
+    @After
+    fun cleanup() {
+        testScope.cleanupTestCoroutines()
     }
 }

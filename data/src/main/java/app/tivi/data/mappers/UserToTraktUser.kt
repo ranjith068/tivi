@@ -23,13 +23,13 @@ import javax.inject.Singleton
 
 @Singleton
 class UserToTraktUser @Inject constructor() : Mapper<User, TraktUser> {
-    override fun map(from: User) = TraktUser(
-            username = from.username,
-            name = from.name,
-            location = from.location,
-            about = from.about,
-            avatarUrl = from.images?.avatar?.full,
-            joined = from.joined_at,
-            vip = from.vip
+    override suspend fun map(from: User) = TraktUser(
+        username = from.username,
+        name = from.name,
+        location = from.location,
+        about = from.about,
+        avatarUrl = from.images?.avatar?.full,
+        joined = from.joined_at,
+        vip = from.vip
     )
 }

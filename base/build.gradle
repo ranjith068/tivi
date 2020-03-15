@@ -15,15 +15,17 @@
  *
  */
 
+import app.tivi.buildsrc.Libs
+
 apply plugin: 'kotlin'
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${versions.kotlin}"
-    compile "org.jetbrains.kotlinx:kotlinx-coroutines-core:${versions.coroutines}"
-    compile "org.jetbrains.kotlinx:kotlinx-coroutines-rx2:${versions.coroutines}"
+    api Libs.Kotlin.stdlib
 
-    compile "com.google.dagger:dagger:${versions.dagger}"
+    api Libs.Coroutines.core
 
-    compile "com.squareup.retrofit2:retrofit:${versions.retrofit}"
-    compile 'com.squareup.okhttp3:logging-interceptor:3.12.1'
+    api Libs.Dagger.dagger
+
+    api Libs.Retrofit.retrofit
+    api Libs.OkHttp.loggingInterceptor
 }

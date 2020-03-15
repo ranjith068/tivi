@@ -16,47 +16,31 @@
 
 package app.tivi.showdetails
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import androidx.lifecycle.ViewModelProviders
+import android.view.View
+import androidx.core.view.updatePadding
+import androidx.fragment.app.commit
+import androidx.navigation.fragment.NavHostFragment
 import app.tivi.R
 import app.tivi.TiviActivity
-import app.tivi.extensions.observeNotNull
-import app.tivi.showdetails.details.ShowDetailsFragment
-import app.tivi.showdetails.details.ShowDetailsFragmentViewModel
-import app.tivi.showdetails.episodedetails.EpisodeDetailsFragment
-import app.tivi.showdetails.episodedetails.EpisodeDetailsViewModel
-import javax.inject.Inject
+import dev.chrisbanes.insetter.doOnApplyWindowInsets
 
 class ShowDetailsActivity : TiviActivity() {
-
-    companion object {
-        private const val KEY_SHOW_ID = "show_id"
-
-        fun createIntent(context: Context, id: Long): Intent {
-            return Intent(context, ShowDetailsActivity::class.java).apply {
-                putExtra(KEY_SHOW_ID, id)
-            }
-        }
-    }
-
-    private lateinit var navigatorViewModel: ShowDetailsNavigatorViewModel
-
-    @Inject lateinit var showDetailsFragmentViewModelFactory: ShowDetailsFragmentViewModel.Factory
-    @Inject lateinit var episodeDetailsViewModelFactory: EpisodeDetailsViewModel.Factory
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_show_details)
 
-        navigatorViewModel = ViewModelProviders.of(this, viewModelFactory)
-                .get(ShowDetailsNavigatorViewModel::class.java)
+        findViewById<View>(R.id.details_root).apply {
+            systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
 
-        navigatorViewModel.events.observeNotNull(this) {
-            when (it) {
-                is NavigateUpEvent -> onNavigateUp()
-                is ShowEpisodeDetailsEvent -> showEpisodeDetails(it.episodeId)
+            doOnApplyWindowInsets { view, insets, initialState ->
+                view.updatePadding(
+                    left = insets.systemWindowInsetLeft + initialState.paddings.left,
+                    right = insets.systemWindowInsetRight + initialState.paddings.right
+                )
             }
         }
 
@@ -64,18 +48,9 @@ class ShowDetailsActivity : TiviActivity() {
     }
 
     override fun handleIntent(intent: Intent) {
-        val showId = intent.getLongExtra(KEY_SHOW_ID, -1L)
-        if (showId != -1L) {
-            supportFragmentManager.beginTransaction()
-                    .replace(R.id.details_content, ShowDetailsFragment.create(showId))
-                    .commit()
-        } else {
-            // TODO finish?
+        supportFragmentManager.commit {
+            replace(R.id.details_content,
+                NavHostFragment.create(R.navigation.show_details_nav_graph, intent.extras))
         }
-    }
-
-    private fun showEpisodeDetails(episodeId: Long) {
-        EpisodeDetailsFragment.create(episodeId)
-                .show(supportFragmentManager, "episode")
     }
 }

@@ -21,13 +21,19 @@ import app.tivi.AppNavigator
 import app.tivi.TiviAppNavigator
 import app.tivi.TiviApplication
 import app.tivi.appinitializers.AppInitializer
+import app.tivi.appinitializers.ArchTaskExecutorInitializer
+import app.tivi.appinitializers.ClearGlideCacheInitializer
 import app.tivi.appinitializers.EmojiInitializer
-import app.tivi.appinitializers.EpoxyInitializer
-import app.tivi.appinitializers.RxAndroidInitializer
+import app.tivi.appinitializers.PreferencesInitializer
 import app.tivi.appinitializers.ThreeTenBpInitializer
 import app.tivi.appinitializers.TimberInitializer
+import app.tivi.appinitializers.TmdbInitializer
+import app.tivi.settings.TiviPreferences
+import app.tivi.settings.TiviPreferencesImpl
+import app.tivi.util.AndroidPowerController
 import app.tivi.util.Logger
-import app.tivi.util.TimberLogger
+import app.tivi.util.PowerController
+import app.tivi.util.TiviLogger
 import dagger.Binds
 import dagger.Module
 import dagger.multibindings.IntoSet
@@ -39,6 +45,9 @@ abstract class AppModuleBinds {
     @Binds
     abstract fun provideApplication(bind: TiviApplication): Application
 
+    @Binds
+    internal abstract fun providePowerController(bind: AndroidPowerController): PowerController
+
     @Singleton
     @Named("app")
     @Binds
@@ -46,19 +55,15 @@ abstract class AppModuleBinds {
 
     @Singleton
     @Binds
-    abstract fun provideLogger(bind: TimberLogger): Logger
+    abstract fun provideLogger(bind: TiviLogger): Logger
+
+    @Singleton
+    @Binds
+    abstract fun providePreferences(bind: TiviPreferencesImpl): TiviPreferences
 
     @Binds
     @IntoSet
     abstract fun provideEmojiInitializer(bind: EmojiInitializer): AppInitializer
-
-    @Binds
-    @IntoSet
-    abstract fun provideEpoxyInitializer(bind: EpoxyInitializer): AppInitializer
-
-    @Binds
-    @IntoSet
-    abstract fun provideRxAndroidInitializer(bind: RxAndroidInitializer): AppInitializer
 
     @Binds
     @IntoSet
@@ -67,4 +72,20 @@ abstract class AppModuleBinds {
     @Binds
     @IntoSet
     abstract fun provideTimberInitializer(bind: TimberInitializer): AppInitializer
+
+    @Binds
+    @IntoSet
+    abstract fun providePreferencesInitializer(bind: PreferencesInitializer): AppInitializer
+
+    @Binds
+    @IntoSet
+    abstract fun provideArchTaskExecutorInitializer(bind: ArchTaskExecutorInitializer): AppInitializer
+
+    @Binds
+    @IntoSet
+    abstract fun provideTmdbInitializer(bind: TmdbInitializer): AppInitializer
+
+    @Binds
+    @IntoSet
+    abstract fun provideClearGlideInitializer(bind: ClearGlideCacheInitializer): AppInitializer
 }

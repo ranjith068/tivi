@@ -17,36 +17,44 @@
 package app.tivi.data.repositories.traktusers
 
 import app.tivi.data.entities.Success
-import org.threeten.bp.Period
+import app.tivi.extensions.asyncOrAwait
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.threeten.bp.Instant
+import org.threeten.bp.Period
 
 @Singleton
 class TraktUsersRepository @Inject constructor(
-    private val localStore: LocalTraktUsersStore,
+    private val traktUsersStore: TraktUsersStore,
+    private val lastRequestStore: TraktUsersLastRequestStore,
     private val traktDataSource: TraktUsersDataSource
 ) {
-    fun observeUser(username: String) = localStore.observeUser(username)
+    fun observeUser(username: String) = traktUsersStore.observeUser(username)
 
     suspend fun updateUser(username: String) {
-        val response = traktDataSource.getUser(username)
-        when {
-            response is Success && response.responseModified -> {
-            var user = response.data
-            // Tag the user as 'me' if that's what we're requesting
-            if (username == "me") {
-                user = user.copy(isMe = true)
+        asyncOrAwait("update_user_$username") {
+            when (val response = traktDataSource.getUser(username)) {
+                is Success -> {
+                    var user = response.data
+                    // Tag the user as 'me' if that's what we're requesting
+                    if (username == "me") {
+                        user = user.copy(isMe = true)
+                    }
+                    // Make sure we use the current DB id (if present)
+                    val localUser = traktUsersStore.getUser(user.username)
+                    if (localUser != null) {
+                        user = user.copy(id = localUser.id)
+                    }
+                    val id = traktUsersStore.save(user)
+                    lastRequestStore.updateLastRequest(id, Instant.now())
+                }
             }
-            // Make sure we use the current DB id (if present)
-            val localUser = localStore.getUser(user.username)
-            if (localUser != null) {
-                user = user.copy(id = localUser.id)
-            }
-            localStore.save(user)
-            localStore.updateLastRequest(username)
-        }
         }
     }
 
-    fun needUpdate(username: String): Boolean = localStore.isLastRequestBefore(username, Period.ofDays(7))
+    suspend fun needUpdate(username: String): Boolean {
+        return traktUsersStore.getIdForUsername(username)?.let {
+            lastRequestStore.isRequestExpired(it, Period.ofDays(7))
+        } ?: true
+    }
 }

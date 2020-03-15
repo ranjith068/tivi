@@ -18,173 +18,56 @@ package app.tivi.home
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.ViewGroup
-import androidx.core.view.forEach
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentTransaction
-import androidx.lifecycle.ViewModelProviders
+import androidx.databinding.DataBindingUtil
+import androidx.lifecycle.observe
+import androidx.navigation.NavController
 import app.tivi.R
-import app.tivi.SharedElementHelper
-import app.tivi.TiviActivity
-import app.tivi.extensions.observeK
-import app.tivi.home.HomeActivityViewModel.NavigationItem.DISCOVER
-import app.tivi.home.HomeActivityViewModel.NavigationItem.LIBRARY
-import app.tivi.home.discover.DiscoverFragment
-import app.tivi.home.discover.DiscoverViewModel
-import app.tivi.home.followedshows.FollowedShowsFragment
-import app.tivi.home.library.LibraryFragment
-import app.tivi.home.library.LibraryViewModel
-import app.tivi.home.popular.PopularShowsFragment
-import app.tivi.home.trending.TrendingShowsFragment
-import app.tivi.home.watched.WatchedShowsFragment
+import app.tivi.TiviActivityMvRxView
+import app.tivi.databinding.ActivityHomeBinding
+import app.tivi.extensions.hideSoftInput
+import app.tivi.extensions.setupWithNavController
 import app.tivi.trakt.TraktConstants
-import kotlinx.android.synthetic.main.activity_home.*
+import com.airbnb.mvrx.viewModel
+import javax.inject.Inject
 import net.openid.appauth.AuthorizationException
 import net.openid.appauth.AuthorizationResponse
 import net.openid.appauth.AuthorizationService
-import javax.inject.Inject
 
-class HomeActivity : TiviActivity() {
-    companion object {
-        const val ROOT_FRAGMENT = "root"
-    }
+class HomeActivity : TiviActivityMvRxView() {
+    private val authService by lazy(LazyThreadSafetyMode.NONE) { AuthorizationService(this) }
 
-    private lateinit var viewModel: HomeActivityViewModel
-    private lateinit var navigatorViewModel: HomeNavigatorViewModel
+    private val viewModel: HomeActivityViewModel by viewModel()
 
-    @Inject lateinit var discoverViewModelFactory: DiscoverViewModel.Factory
-    @Inject lateinit var libraryViewModelFactory: LibraryViewModel.Factory
+    @Inject lateinit var homeNavigationViewModelFactory: HomeActivityViewModel.Factory
 
-    val authService by lazy(LazyThreadSafetyMode.NONE) {
-        AuthorizationService(this)
-    }
+    private lateinit var binding: ActivityHomeBinding
+
+    private var currentNavController: NavController? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_home)
 
-        home_content.setOnApplyWindowInsetsListener { view, insets ->
-            var consumed = false
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_home)
 
-            (view as ViewGroup).forEach { child ->
-                if (child.dispatchApplyWindowInsets(insets).isConsumed) {
-                    consumed = true
-                }
-            }
-
-            if (consumed) insets.consumeSystemWindowInsets() else insets
-        }
-
-        viewModel = ViewModelProviders.of(this, viewModelFactory)
-                .get(HomeActivityViewModel::class.java)
-
-        navigatorViewModel = ViewModelProviders.of(this, viewModelFactory)
-                .get(HomeNavigatorViewModel::class.java)
-
-        home_bottom_nav.setOnNavigationItemSelectedListener {
-            when (it.itemId) {
-                home_bottom_nav.selectedItemId -> {
-                    if (supportFragmentManager.backStackEntryCount > 0) {
-                        for (i in 0 until supportFragmentManager.backStackEntryCount) {
-                            supportFragmentManager.popBackStack()
-                        }
-                    } else {
-                        val fragment = supportFragmentManager.findFragmentById(R.id.home_content)
-                        when (fragment) {
-                            is DiscoverFragment -> fragment.scrollToTop()
-                            is LibraryFragment -> fragment.scrollToTop()
-                        }
-                    }
-                    true
-                }
-                R.id.home_nav_collection -> {
-                    viewModel.onNavigationItemClicked(LIBRARY)
-                    true
-                }
-                R.id.home_nav_discover -> {
-                    viewModel.onNavigationItemClicked(DISCOVER)
-                    true
-                }
-                else -> false
-            }
-        }
-
-        viewModel.navigationLiveData.observeK(this, this::showNavigationItem)
-
-        navigatorViewModel.showPopularCall.observeK(this, this::showPopular)
-        navigatorViewModel.showTrendingCall.observeK(this, this::showTrending)
-        navigatorViewModel.showWatchedCall.observeK(this, this::showWatched)
-        navigatorViewModel.showMyShowsCall.observeK(this, this::showMyShows)
-        navigatorViewModel.upClickedCall.observeK(this) { this.onUpClicked() }
-    }
-
-    private fun showNavigationItem(item: HomeActivityViewModel.NavigationItem?) {
-        if (item == null) {
-            return
-        }
-
-        val newFragment: Fragment
-        val newItemId: Int
-
-        when (item) {
-            DISCOVER -> {
-                newFragment = DiscoverFragment()
-                newItemId = R.id.home_nav_discover
-            }
-            LIBRARY -> {
-                newFragment = LibraryFragment()
-                newItemId = R.id.home_nav_collection
-            }
-        }
-
-        supportFragmentManager.popBackStackImmediate(ROOT_FRAGMENT, 0)
-
-        supportFragmentManager
-                .beginTransaction()
-                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
-                .replace(R.id.home_content, newFragment, ROOT_FRAGMENT)
-                .commit()
-
-        // Now make the bottom nav show the correct item
-        if (home_bottom_nav.selectedItemId != newItemId) {
-            home_bottom_nav.menu.findItem(newItemId)?.isChecked = true
+        if (savedInstanceState == null) {
+            setupBottomNavigationBar()
         }
     }
 
-    private fun showPopular(sharedElements: SharedElementHelper?) {
-        showStackFragment(PopularShowsFragment(), sharedElements)
+    override fun onStart() {
+        super.onStart()
+        viewModel.subscribe(this) { postInvalidate() }
     }
 
-    private fun showTrending(sharedElements: SharedElementHelper?) {
-        showStackFragment(TrendingShowsFragment(), sharedElements)
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        // Now that BottomNavigationBar has restored its instance state
+        // and its selectedItemId, we can proceed with setting up the
+        // BottomNavigationBar with Navigation
+        setupBottomNavigationBar()
     }
 
-    private fun showWatched(sharedElements: SharedElementHelper?) {
-        showStackFragment(WatchedShowsFragment(), sharedElements)
-    }
-
-    private fun showMyShows(sharedElements: SharedElementHelper?) {
-        showStackFragment(FollowedShowsFragment(), sharedElements)
-    }
-
-    private fun showStackFragment(fragment: Fragment, sharedElements: SharedElementHelper? = null) {
-        supportFragmentManager.beginTransaction()
-                .setReorderingAllowed(true)
-                .replace(R.id.home_content, fragment)
-                .addToBackStack(null)
-                .apply {
-                    if (sharedElements != null && !sharedElements.isEmpty()) {
-                        sharedElements.applyToTransaction(this)
-                    } else {
-                        setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
-                    }
-                }
-                .commit()
-    }
-
-    private fun onUpClicked() {
-        // TODO can probably do something better here
-        supportFragmentManager.popBackStack()
+    override fun invalidate() {
     }
 
     override fun handleIntent(intent: Intent) {
@@ -195,5 +78,31 @@ class HomeActivity : TiviActivity() {
                 viewModel.onAuthResponse(authService, response, error)
             }
         }
+    }
+
+    internal fun startLogin() {
+        viewModel.onLoginItemClicked(authService)
+    }
+
+    private fun setupBottomNavigationBar() {
+        binding.homeBottomNavigation.setupWithNavController(
+            listOf(R.navigation.discover_nav_graph, R.navigation.watched_nav_graph,
+                R.navigation.following_nav_graph, R.navigation.search_nav_graph),
+            supportFragmentManager,
+            R.id.home_nav_container,
+            intent
+        ).observe(this) { navController ->
+            currentNavController = navController
+
+            navController.addOnDestinationChangedListener { _, destination, _ ->
+                if (destination.id != R.id.navigation_search) {
+                    hideSoftInput()
+                }
+            }
+        }
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        return currentNavController?.navigateUp() ?: super.onSupportNavigateUp()
     }
 }

@@ -17,7 +17,6 @@
 
 <resources>
     <declare-styleable name="TiviTheme">
-        <attr name="navigationBackgroundColor" format="color" />
     </declare-styleable>
 
     <declare-styleable name="TopLeftCutoutBackgroundView">
@@ -27,5 +26,11 @@
 
     <declare-styleable name="PopupMenuButton">
         <attr name="menu" />
+    </declare-styleable>
+
+    <declare-styleable name="MaterialShapeConstraintLayout">
+        <attr name="materialBackgroundTopLeftRadius" format="dimension" />
+        <attr name="materialBackgroundTopRightRadius" format="dimension" />
+        <attr name="materialBackgroundColor" format="color" />
     </declare-styleable>
 </resources>

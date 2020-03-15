@@ -25,7 +25,7 @@ import java.util.Objects
 
 class SeasonWithEpisodesAndWatches {
     @Embedded
-    var season: Season? = null
+    lateinit var season: Season
 
     @Relation(parentColumn = "id", entityColumn = "season_id", entity = Episode::class)
     var episodes: List<EpisodeWithWatches> = emptyList()
@@ -59,6 +59,14 @@ class SeasonWithEpisodesAndWatches {
     @delegate:Ignore
     val numberEpisodes by lazy(LazyThreadSafetyMode.NONE) {
         episodes.size
+    }
+
+    @delegate:Ignore
+    val nextToAir by lazy(LazyThreadSafetyMode.NONE) {
+        episodes.firstOrNull {
+            val ep = it.episode!!
+            !ep.isAired() && ep.firstAired != null
+        }?.let { it.episode }
     }
 
     override fun hashCode(): Int = Objects.hash(season, episodes)

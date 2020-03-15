@@ -27,3 +27,27 @@ interface TraktIdEntity {
 interface TmdbIdEntity {
     val tmdbId: Int?
 }
+
+interface TmdbImageEntity : TiviEntity {
+    val path: String
+    val type: ImageType
+    val language: String?
+    val rating: Float
+    val isPrimary: Boolean
+}
+
+enum class ImageType(val storageKey: String) {
+    BACKDROP("backdrop"),
+    POSTER("poster"),
+    LOGO("logo"),
+}
+
+fun <T : TmdbImageEntity> Collection<T>.findHighestRatedPoster(): T? {
+    return filter { it.type == ImageType.POSTER }
+        .maxBy { it.rating + (if (it.isPrimary) 10f else 0f) }
+}
+
+fun <T : TmdbImageEntity> Collection<T>.findHighestRatedBackdrop(): T? {
+    return filter { it.type == ImageType.BACKDROP }
+        .maxBy { it.rating + (if (it.isPrimary) 10f else 0f) }
+}

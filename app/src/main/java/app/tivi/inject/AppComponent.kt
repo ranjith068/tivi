@@ -17,13 +17,18 @@
 package app.tivi.inject
 
 import app.tivi.TiviApplication
+import app.tivi.common.epoxy.EpoxyModule
+import app.tivi.common.imageloading.ImageLoadingModule
 import app.tivi.data.DataModule
 import app.tivi.data.DatabaseModule
 import app.tivi.home.HomeBuilder
+import app.tivi.settings.SettingsPreferenceFragmentBuilder
 import app.tivi.showdetails.ShowDetailsBuilder
 import app.tivi.tasks.inject.TasksModule
 import app.tivi.tmdb.TmdbModule
 import app.tivi.trakt.TraktAuthModule
+import app.tivi.trakt.TraktModule
+import dagger.BindsInstance
 import dagger.Component
 import dagger.android.AndroidInjector
 import dagger.android.support.AndroidSupportInjectionModule
@@ -39,11 +44,17 @@ import javax.inject.Singleton
     DataModule::class,
     HomeBuilder::class,
     ShowDetailsBuilder::class,
+    TraktModule::class,
     TraktAuthModule::class,
     TmdbModule::class,
-    NetworkModule::class
+    NetworkModule::class,
+    ImageLoadingModule::class,
+    EpoxyModule::class,
+    SettingsPreferenceFragmentBuilder::class
 ])
 interface AppComponent : AndroidInjector<TiviApplication> {
-    @Component.Builder
-    abstract class Builder : AndroidInjector.Builder<TiviApplication>()
+    @Component.Factory
+    interface Factory {
+        fun create(@BindsInstance application: TiviApplication): AppComponent
+    }
 }

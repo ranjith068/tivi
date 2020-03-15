@@ -15,9 +15,17 @@
  *
  */
 
+import app.tivi.buildsrc.Libs
+
 apply plugin: 'com.android.library'
 
 apply plugin: 'kotlin-android'
+
+apply plugin: 'kotlin-kapt'
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
 
 android {
     compileSdkVersion buildConfig.compileSdk
@@ -33,10 +41,18 @@ android {
 }
 
 dependencies {
-    implementation project(":base")
-    implementation "androidx.fragment:fragment:${versions.androidx.fragment}"
-    implementation 'com.jakewharton.timber:timber:4.7.1'
+    api project(':base')
+    implementation project(':data')
 
-    implementation "androidx.arch.core:core-runtime:${versions.androidx.arch_core}"
-    implementation "androidx.arch.core:core-common:${versions.androidx.arch_core}"
+    implementation Libs.AndroidX.Fragment.fragment
+    implementation Libs.AndroidX.coreKtx
+    //implementation Libs.AndroidX.collection
+
+    implementation Libs.timber
+    implementation Libs.threeTenAbp
+
+    implementation Libs.Google.firebaseCore
+    implementation Libs.Google.crashlytics
+
+    kapt Libs.Dagger.compiler
 }

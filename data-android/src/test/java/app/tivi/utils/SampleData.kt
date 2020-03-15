@@ -20,10 +20,13 @@ import app.tivi.data.TiviDatabase
 import app.tivi.data.entities.Episode
 import app.tivi.data.entities.EpisodeWatchEntry
 import app.tivi.data.entities.FollowedShowEntry
+import app.tivi.data.entities.ImageType
 import app.tivi.data.entities.PendingAction
 import app.tivi.data.entities.Season
+import app.tivi.data.entities.ShowTmdbImage
 import app.tivi.data.entities.TiviShow
 import org.threeten.bp.OffsetDateTime
+import org.threeten.bp.ZoneOffset
 
 const val showId = 1L
 val show = TiviShow(id = showId, title = "Down Under", traktId = 243)
@@ -31,71 +34,73 @@ val show = TiviShow(id = showId, title = "Down Under", traktId = 243)
 const val show2Id = 2L
 val show2 = TiviShow(id = show2Id, title = "G'day mate", traktId = 546)
 
-fun insertShow(db: TiviDatabase) = db.showDao().insert(show)
+internal suspend fun insertShow(db: TiviDatabase) = db.showDao().insert(show)
 
-fun deleteShow(db: TiviDatabase) = db.showDao().delete(show)
+internal suspend fun deleteShow(db: TiviDatabase) = db.showDao().deleteEntity(show)
 
-const val seasonSpecialsId = 1L
-val seasonSpecials = Season(
-        id = seasonSpecialsId,
-        showId = showId,
-        title = "Specials",
-        number = Season.NUMBER_SPECIALS,
-        traktId = 7042
+const val s1_id = 1L
+val s1 = Season(
+    id = s1_id,
+    showId = showId,
+    title = "Season 1",
+    number = 1,
+    traktId = 5443
 )
 
-const val seasonOneId = 2L
-val seasonOne = Season(
-        id = seasonOneId,
-        showId = showId,
-        title = "Season 1",
-        number = 1,
-        traktId = 5443
+const val s2_id = 2L
+val s2 = Season(
+    id = s2_id,
+    showId = showId,
+    title = "Season 2",
+    number = 2,
+    traktId = 5434
 )
 
-const val seasonTwoId = 3L
-val seasonTwo = Season(
-        id = seasonTwoId,
-        showId = showId,
-        title = "Season 2",
-        number = 2,
-        traktId = 5434
+const val s0_id = 3L
+val s0 = Season(
+    id = s0_id,
+    showId = showId,
+    title = "Specials",
+    number = Season.NUMBER_SPECIALS,
+    traktId = 7042
 )
 
-fun deleteSeason(db: TiviDatabase) = db.seasonsDao().delete(seasonOne)
+private val s1e1AirDate = OffsetDateTime.of(2000, 7, 1, 18, 0, 0, 0, ZoneOffset.UTC)
 
-fun insertSeason(db: TiviDatabase) = db.seasonsDao().insert(seasonOne)
+val s1e1 = Episode(id = 1, title = "Kangaroo Court", seasonId = s1.id, number = 0, traktId = 59830, firstAired = s1e1AirDate)
+val s1e2 = Episode(id = 2, title = "Bushtucker", seasonId = s1.id, number = 1, traktId = 33435, firstAired = s1e1AirDate.plusWeeks(1))
+val s1e3 = Episode(id = 3, title = "Wallaby Bungee", seasonId = s1.id, number = 2, traktId = 44542, firstAired = s1e1AirDate.plusWeeks(2))
 
-val episodeOne = Episode(id = 1, title = "Kangaroo Court", seasonId = seasonOne.id, number = 0, traktId = 59830)
-val episodeTwo = Episode(id = 2, title = "Bushtucker", seasonId = seasonOne.id, number = 1, traktId = 33435)
-val episodeThree = Episode(id = 3, title = "Wallaby Bungee", seasonId = seasonOne.id, number = 2, traktId = 44542)
+val s2e1 = Episode(id = 4, title = "Noosa Pool", seasonId = s2.id, number = 0, traktId = 5656, firstAired = s1e1AirDate.plusWeeks(3))
+val s2e2 = Episode(id = 5, title = "Alice Springer", seasonId = s2.id, number = 1, traktId = 8731, firstAired = s1e1AirDate.plusWeeks(4))
 
-val episodes = listOf(episodeOne, episodeTwo, episodeThree)
+val s1_episodes = listOf(s1e1, s1e2, s1e3)
+val s2_episodes = listOf(s2e1, s2e2)
 
-fun insertEpisodes(db: TiviDatabase) = episodes.forEach { db.episodesDao().insert(it) }
-
-fun deleteEpisodes(db: TiviDatabase) = episodes.forEach { db.episodesDao().delete(it) }
-
-const val episodeWatch1Id = 1L
-val episodeWatch1 = EpisodeWatchEntry(
-        id = episodeWatch1Id,
-        watchedAt = OffsetDateTime.now(),
-        episodeId = episodeOne.id,
-        traktId = 435214
+const val s1e1w_id = 1L
+val s1e1w = EpisodeWatchEntry(
+    id = s1e1w_id,
+    watchedAt = OffsetDateTime.now(),
+    episodeId = s1e1.id,
+    traktId = 435214
 )
 
-const val episodeWatch2Id = 2L
-val episodeWatch2 = episodeWatch1.copy(id = episodeWatch2Id, traktId = 4385783)
+const val s1e1w2_id = 2L
+val s1e1w2 = s1e1w.copy(id = s1e1w2_id, traktId = 4385783)
 
-val episodeWatch2PendingSend = episodeWatch2.copy(pendingAction = PendingAction.UPLOAD)
-val episodeWatch2PendingDelete = episodeWatch2.copy(pendingAction = PendingAction.DELETE)
+val episodeWatch2PendingSend = s1e1w2.copy(pendingAction = PendingAction.UPLOAD)
+val episodeWatch2PendingDelete = s1e1w2.copy(pendingAction = PendingAction.DELETE)
 
-fun insertFollowedShow(db: TiviDatabase) = db.followedShowsDao().insert(followedShow1)
+internal suspend fun insertFollowedShow(db: TiviDatabase) = db.followedShowsDao().insert(followedShow1Local)
 
 const val followedShowId = 1L
-val followedShow1 = FollowedShowEntry(followedShowId, showId)
-val followedShow1PendingDelete = followedShow1.copy(pendingAction = PendingAction.DELETE)
-val followedShow1PendingUpload = followedShow1.copy(pendingAction = PendingAction.UPLOAD)
+val followedShow1Network = FollowedShowEntry(0, showId, traktId = 100)
+val followedShow1Local = followedShow1Network.copy(id = followedShowId)
+val followedShow1PendingDelete = followedShow1Local.copy(pendingAction = PendingAction.DELETE)
+val followedShow1PendingUpload = followedShow1Local.copy(pendingAction = PendingAction.UPLOAD)
 
 const val followedShow2Id = 2L
-val followedShow2 = FollowedShowEntry(followedShow2Id, show2Id)
+val followedShow2Network = FollowedShowEntry(0, show2Id, traktId = 101)
+val followedShow2Local = followedShow2Network.copy(id = followedShow2Id)
+
+val showPoster = ShowTmdbImage(showId = 0, path = "/folder/fake.jpg", type = ImageType.POSTER)

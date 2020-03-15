@@ -16,7 +16,7 @@
 
 package app.tivi.data.repositories.relatedshows
 
-import app.tivi.data.RetrofitRunner
+import app.tivi.data.entities.ErrorResult
 import app.tivi.data.entities.RelatedShowEntry
 import app.tivi.data.entities.Result
 import app.tivi.data.entities.TiviShow
@@ -25,29 +25,30 @@ import app.tivi.data.mappers.ShowIdToTraktIdMapper
 import app.tivi.data.mappers.TraktShowToTiviShow
 import app.tivi.data.mappers.pairMapperOf
 import app.tivi.extensions.executeWithRetry
+import app.tivi.extensions.toResult
 import com.uwetrottmann.trakt5.entities.Show
 import com.uwetrottmann.trakt5.enums.Extended
 import com.uwetrottmann.trakt5.services.Shows
 import javax.inject.Inject
 import javax.inject.Provider
 
-class TraktRelatedShowsDataSource @Inject constructor(
+internal class TraktRelatedShowsDataSource @Inject constructor(
     private val traktIdMapper: ShowIdToTraktIdMapper,
     private val showService: Provider<Shows>,
-    private val retrofitRunner: RetrofitRunner,
     private val showMapper: TraktShowToTiviShow
-) : RelatedShowsDataSource {
+) {
     private val entryMapper = object : IndexedMapper<Show, RelatedShowEntry> {
-        override fun map(index: Int, from: Show): RelatedShowEntry {
+        override suspend fun map(index: Int, from: Show): RelatedShowEntry {
             return RelatedShowEntry(showId = 0, otherShowId = 0, orderIndex = index)
         }
     }
     private val resultMapper = pairMapperOf(showMapper, entryMapper)
 
-    override suspend fun getRelatedShows(showId: Long): Result<List<Pair<TiviShow, RelatedShowEntry>>> {
-        return retrofitRunner.executeForResponse(resultMapper) {
-            showService.get().related(traktIdMapper.map(showId).toString(), 0, 10, Extended.NOSEASONS)
-                    .executeWithRetry()
-        }
+    suspend operator fun invoke(showId: Long): Result<List<Pair<TiviShow, RelatedShowEntry>>> {
+        val traktId = traktIdMapper.map(showId)
+            ?: return ErrorResult(IllegalArgumentException("No Trakt ID for show with ID: $showId"))
+        return showService.get().related(traktId.toString(), 0, 10, Extended.NOSEASONS)
+            .executeWithRetry()
+            .toResult(resultMapper)
     }
 }

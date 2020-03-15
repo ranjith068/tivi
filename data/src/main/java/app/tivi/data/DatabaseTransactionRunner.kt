@@ -17,5 +17,5 @@
 package app.tivi.data
 
 interface DatabaseTransactionRunner {
-    operator fun <T> invoke(run: () -> T): T
+    suspend operator fun <T> invoke(block: suspend () -> T): T
 }

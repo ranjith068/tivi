@@ -16,8 +16,15 @@
 
 package app.tivi.data
 
-import java.util.concurrent.Callable
+import androidx.room.withTransaction
+import javax.inject.Inject
 
-class RoomTransactionRunner(private val db: TiviDatabase) : DatabaseTransactionRunner {
-    override operator fun <T> invoke(run: () -> T): T = db.runInTransaction(Callable<T> { run() })
+class RoomTransactionRunner @Inject constructor(
+    private val db: TiviRoomDatabase
+) : DatabaseTransactionRunner {
+    override suspend operator fun <T> invoke(block: suspend () -> T): T {
+        return db.withTransaction {
+            block()
+        }
+    }
 }

@@ -16,15 +16,18 @@
 
 package app.tivi.data.repositories.followedshows
 
-import app.tivi.data.RetrofitRunner
+import app.tivi.data.entities.ErrorResult
 import app.tivi.data.entities.FollowedShowEntry
 import app.tivi.data.entities.Result
+import app.tivi.data.entities.Success
 import app.tivi.data.entities.TiviShow
 import app.tivi.data.mappers.TraktListEntryToFollowedShowEntry
 import app.tivi.data.mappers.TraktListEntryToTiviShow
 import app.tivi.data.mappers.pairMapperOf
+import app.tivi.extensions.bodyOrThrow
 import app.tivi.extensions.executeWithRetry
-import app.tivi.extensions.fetchBodyWithRetry
+import app.tivi.extensions.toResult
+import app.tivi.extensions.toResultUnit
 import com.uwetrottmann.trakt5.entities.ShowIds
 import com.uwetrottmann.trakt5.entities.SyncItems
 import com.uwetrottmann.trakt5.entities.SyncShow
@@ -38,13 +41,13 @@ import javax.inject.Provider
 
 class TraktFollowedShowsDataSource @Inject constructor(
     private val usersService: Provider<Users>,
-    private val retrofitRunner: RetrofitRunner,
-    private val listEntryToShowMapper: TraktListEntryToTiviShow,
-    private val listEntryToFollowedEntry: TraktListEntryToFollowedShowEntry
+    listEntryToShowMapper: TraktListEntryToTiviShow,
+    listEntryToFollowedEntry: TraktListEntryToFollowedShowEntry
 ) : FollowedShowsDataSource {
     companion object {
         private val LIST_NAME = "Following"
     }
+
     private val listShowsMapper = pairMapperOf(listEntryToFollowedEntry, listEntryToShowMapper)
 
     override suspend fun addShowIdsToList(listId: Int, shows: List<TiviShow>): Result<Unit> {
@@ -58,9 +61,9 @@ class TraktFollowedShowsDataSource @Inject constructor(
                 }
             }
         }
-        return retrofitRunner.executeForResponse {
-            usersService.get().addListItems(UserSlug.ME, listId.toString(), syncItems).executeWithRetry()
-        }
+        return usersService.get().addListItems(UserSlug.ME, listId.toString(), syncItems)
+            .executeWithRetry()
+            .toResultUnit()
     }
 
     override suspend fun removeShowIdsFromList(listId: Int, shows: List<TiviShow>): Result<Unit> {
@@ -74,31 +77,40 @@ class TraktFollowedShowsDataSource @Inject constructor(
                 }
             }
         }
-        return retrofitRunner.executeForResponse {
-            usersService.get().deleteListItems(UserSlug.ME, listId.toString(), syncItems).executeWithRetry()
-        }
+        return usersService.get().deleteListItems(UserSlug.ME, listId.toString(), syncItems)
+            .executeWithRetry()
+            .toResultUnit()
     }
 
     override suspend fun getListShows(listId: Int): Result<List<Pair<FollowedShowEntry, TiviShow>>> {
-        return retrofitRunner.executeForResponse(listShowsMapper) {
-            usersService.get().listItems(UserSlug.ME, listId.toString(), Extended.NOSEASONS)
-                    .executeWithRetry()
-        }
+        return usersService.get().listItems(UserSlug.ME, listId.toString(), Extended.NOSEASONS)
+            .executeWithRetry()
+            .toResult(listShowsMapper)
     }
 
-    override suspend fun getFollowedListId(): Int {
-        val list = usersService.get().lists(UserSlug.ME).fetchBodyWithRetry()
-                .first { it.name == LIST_NAME }
+    override suspend fun getFollowedListId(): Result<Int> {
+        val fetchResult: Result<Int>? = try {
+            usersService.get().lists(UserSlug.ME)
+                .executeWithRetry()
+                .bodyOrThrow()
+                .firstOrNull { it.name == LIST_NAME }
+                ?.let { Success(it.ids.trakt) }
+        } catch (t: Throwable) {
+            ErrorResult(t)
+        }
 
-        return if (list != null) {
-            list.ids.trakt
-        } else {
-            usersService.get().createList(
-                    UserSlug.ME,
-                    TraktList().name(LIST_NAME).privacy(ListPrivacy.PRIVATE)
-            ).fetchBodyWithRetry().let {
-                it.ids.trakt
-            }
+        if (fetchResult is Success) {
+            return fetchResult
+        }
+
+        return try {
+            usersService.get().createList(UserSlug.ME,
+                TraktList().name(LIST_NAME).privacy(ListPrivacy.PRIVATE))
+                .executeWithRetry()
+                .bodyOrThrow()
+                .let { Success(it.ids.trakt) }
+        } catch (t: Throwable) {
+            ErrorResult(t)
         }
     }
 }

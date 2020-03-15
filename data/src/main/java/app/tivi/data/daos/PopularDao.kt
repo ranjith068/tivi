@@ -22,24 +22,28 @@ import androidx.room.Query
 import androidx.room.Transaction
 import app.tivi.data.entities.PopularShowEntry
 import app.tivi.data.resultentities.PopularEntryWithShow
-import io.reactivex.Flowable
+import kotlinx.coroutines.flow.Flow
 
 @Dao
-abstract class PopularDao : PaginatedEntryDao<PopularShowEntry, PopularEntryWithShow> {
+abstract class PopularDao : PaginatedEntryDao<PopularShowEntry, PopularEntryWithShow>() {
     @Transaction
-    @Query("SELECT * FROM popular_shows ORDER BY page, page_order LIMIT :count OFFSET :offset")
-    abstract override fun entriesFlowable(count: Int, offset: Int): Flowable<List<PopularEntryWithShow>>
+    @Query("SELECT * FROM popular_shows WHERE page = :page ORDER BY page_order")
+    abstract fun entriesObservable(page: Int): Flow<List<PopularShowEntry>>
 
     @Transaction
     @Query("SELECT * FROM popular_shows ORDER BY page, page_order")
-    abstract override fun entriesDataSource(): DataSource.Factory<Int, PopularEntryWithShow>
+    abstract fun entriesObservable(): Flow<List<PopularEntryWithShow>>
+
+    @Transaction
+    @Query("SELECT * FROM popular_shows ORDER BY page, page_order")
+    abstract fun entriesDataSource(): DataSource.Factory<Int, PopularEntryWithShow>
 
     @Query("DELETE FROM popular_shows WHERE page = :page")
-    abstract override fun deletePage(page: Int)
+    abstract override suspend fun deletePage(page: Int)
 
     @Query("DELETE FROM popular_shows")
-    abstract override fun deleteAll()
+    abstract override suspend fun deleteAll()
 
     @Query("SELECT MAX(page) from popular_shows")
-    abstract override fun getLastPage(): Int?
+    abstract override suspend fun getLastPage(): Int?
 }

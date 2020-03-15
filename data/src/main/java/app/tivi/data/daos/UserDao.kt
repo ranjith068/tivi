@@ -21,31 +21,31 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import app.tivi.data.entities.TraktUser
-import io.reactivex.Flowable
+import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface UserDao : EntityDao<TraktUser> {
+abstract class UserDao : EntityDao<TraktUser>() {
     @Query("SELECT * FROM users WHERE is_me != 0")
-    fun observeMe(): Flowable<TraktUser>
+    abstract fun observeMe(): Flow<TraktUser>
 
     @Query("SELECT * FROM users WHERE username = :username")
-    fun observeTraktUser(username: String): Flowable<TraktUser>
+    abstract fun observeTraktUser(username: String): Flow<TraktUser>
 
     @Query("SELECT * FROM users WHERE username = :username")
-    fun getTraktUser(username: String): TraktUser?
+    abstract suspend fun getTraktUser(username: String): TraktUser?
 
     @Query("SELECT * FROM users WHERE is_me != 0")
-    fun getMe(): TraktUser?
+    abstract suspend fun getMe(): TraktUser?
 
     @Query("SELECT id FROM users WHERE username = :username")
-    fun getIdForUsername(username: String): Long?
+    abstract suspend fun getIdForUsername(username: String): Long?
 
     @Query("SELECT id FROM users WHERE is_me != 0")
-    fun getIdForMe(): Long?
+    abstract suspend fun getIdForMe(): Long?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    override fun insert(entity: TraktUser): Long
+    abstract override suspend fun insert(entity: TraktUser): Long
 
     @Query("DELETE FROM users")
-    fun deleteAll()
+    abstract suspend fun deleteAll()
 }

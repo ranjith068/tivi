@@ -17,23 +17,23 @@
 package app.tivi.data.mappers
 
 import app.tivi.data.entities.Season
+import com.uwetrottmann.trakt5.entities.Season as TraktSeason
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.uwetrottmann.trakt5.entities.Season as TraktSeason
 
 @Singleton
 class TraktSeasonToSeason @Inject constructor() : Mapper<TraktSeason, Season> {
-    override fun map(from: TraktSeason) = Season(
-            showId = 0,
-            traktId = from.ids.trakt,
-            tmdbId = from.ids.tmdb,
-            number = from.number,
-            title = from.title,
-            summary = from.overview,
-            traktRating = from.rating?.toFloat() ?: 0f,
-            traktRatingVotes = from.votes ?: 0,
-            episodeCount = from.episode_count,
-            episodesAired = from.aired_episodes,
-            network = from.network
+    override suspend fun map(from: TraktSeason) = Season(
+        showId = 0,
+        traktId = from.ids?.trakt,
+        tmdbId = from.ids?.tmdb,
+        number = from.number,
+        title = from.title,
+        summary = from.overview,
+        traktRating = from.rating?.toFloat() ?: 0f,
+        traktRatingVotes = from.votes ?: 0,
+        episodeCount = from.episode_count,
+        episodesAired = from.aired_episodes,
+        network = from.network
     )
 }

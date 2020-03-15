@@ -15,10 +15,17 @@
  *
  */
 
+import app.tivi.buildsrc.Libs
+
 apply plugin: 'com.android.library'
 
 apply plugin: 'kotlin-android'
+
 apply plugin: 'kotlin-kapt'
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
 
 android {
     compileSdkVersion buildConfig.compileSdk
@@ -30,7 +37,10 @@ android {
 
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments = ["room.schemaLocation": "$projectDir/schemas".toString()]
+                arguments = [
+                        "room.schemaLocation": "$projectDir/schemas".toString(),
+                        "room.incremental"   : "true"
+                ]
             }
         }
     }
@@ -43,30 +53,44 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true
+
+            all {
+                minHeapSize = "64m"
+                maxHeapSize = "128m"
+            }
         }
     }
 }
 
 dependencies {
-    implementation project(":base")
-    implementation project(":base-android")
-    implementation project(":data")
+    implementation project(':base')
+    implementation project(':base-android')
+    api project(':data')
 
-    implementation "androidx.room:room-runtime:${versions.androidx.room}"
-    implementation "androidx.room:room-rxjava2:${versions.androidx.room}"
-    kapt "androidx.room:room-compiler:${versions.androidx.room}"
+    api Libs.AndroidX.Room.runtime
+    implementation Libs.AndroidX.Room.ktx
+    kapt Libs.AndroidX.Room.compiler
 
-    implementation "androidx.paging:paging-runtime:${versions.androidx.paging}"
+    implementation Libs.Roomigrant.library
+    kapt Libs.Roomigrant.compiler
 
-    kapt "com.google.dagger:dagger-compiler:${versions.dagger}"
+    implementation Libs.AndroidX.Paging.runtime
 
-    testImplementation "junit:junit:${versions.junit}"
-    testImplementation "org.robolectric:robolectric:${versions.robolectric}"
-    testImplementation "com.nhaarman.mockitokotlin2:mockito-kotlin:${versions.mockito_kotlin}"
+    kapt Libs.Dagger.compiler
 
-    testImplementation "androidx.test:core:${versions.androidx.test_core}"
-    testImplementation "androidx.arch.core:core-testing:${versions.androidx.test_arch_core}"
+    testImplementation Libs.junit
+    testImplementation Libs.robolectric
+    testImplementation Libs.mockK
 
-    testImplementation "org.threeten:threetenbp:${versions.threetenbp}"
-    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:${versions.coroutines}"
+    testImplementation Libs.AndroidX.archCoreTesting
+    testImplementation Libs.AndroidX.Test.core
+    testImplementation Libs.AndroidX.Room.testing
+    testImplementation Libs.Coroutines.test
+    kaptTest Libs.AndroidX.Room.compiler
+    kaptTest Libs.Dagger.compiler
+
+    // Needed for Tzdb
+    testImplementation Libs.threeTenBp
+    // Needed for Main dispatcher to work
+    testImplementation Libs.Coroutines.android
 }

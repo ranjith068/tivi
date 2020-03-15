@@ -17,21 +17,21 @@
 package app.tivi.data.mappers
 
 import app.tivi.data.entities.Episode
+import com.uwetrottmann.trakt5.entities.Episode as TraktEpisode
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.uwetrottmann.trakt5.entities.Episode as TraktEpisode
 
 @Singleton
 class TraktEpisodeToEpisode @Inject constructor() : Mapper<TraktEpisode, Episode> {
-    override fun map(from: TraktEpisode) = Episode(
-            seasonId = 0,
-            traktId = from.ids.trakt,
-            tmdbId = from.ids.tmdb,
-            title = from.title,
-            number = from.number,
-            summary = from.overview,
-            firstAired = from.first_aired,
-            traktRating = from.rating?.toFloat() ?: 0f,
-            traktRatingVotes = from.votes
+    override suspend fun map(from: TraktEpisode) = Episode(
+        seasonId = 0,
+        traktId = from.ids.trakt,
+        tmdbId = from.ids.tmdb,
+        title = from.title,
+        number = from.number,
+        summary = from.overview,
+        firstAired = from.first_aired,
+        traktRating = from.rating?.toFloat() ?: 0f,
+        traktRatingVotes = from.votes
     )
 }

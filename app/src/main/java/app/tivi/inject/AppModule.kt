@@ -18,47 +18,59 @@ package app.tivi.inject
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.preference.PreferenceManager
+import android.os.Build
+import android.text.format.DateFormat as AndroidDateFormat
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.coroutineScope
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.preference.PreferenceManager
 import app.tivi.BuildConfig
 import app.tivi.TiviApplication
+import app.tivi.extensions.toThreeTenDateTimeFormatter
+import app.tivi.home.followed.R
 import app.tivi.util.AppCoroutineDispatchers
-import app.tivi.util.AppRxSchedulers
 import dagger.Module
 import dagger.Provides
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.schedulers.Schedulers
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.rx2.asCoroutineDispatcher
-import org.threeten.bp.ZoneId
-import org.threeten.bp.format.DateTimeFormatter
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.Locale
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import javax.inject.Named
 import javax.inject.Singleton
-import android.text.format.DateFormat as AndroidDateFormat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import org.threeten.bp.ZoneId
+import org.threeten.bp.format.DateTimeFormatter
 
 @Module(includes = [AppModuleBinds::class])
 class AppModule {
     @Provides
     fun provideContext(application: TiviApplication): Context = application.applicationContext
 
+    @ApplicationId
+    @Provides
+    fun provideApplicationId(application: TiviApplication): String = application.packageName
+
     @Singleton
     @Provides
-    fun provideRxSchedulers(): AppRxSchedulers = AppRxSchedulers(
-            io = Schedulers.io(),
-            computation = Schedulers.computation(),
-            main = AndroidSchedulers.mainThread()
+    fun provideCoroutineDispatchers() = AppCoroutineDispatchers(
+        io = Dispatchers.IO,
+        computation = Dispatchers.Default,
+        main = Dispatchers.Main
     )
 
     @Singleton
     @Provides
-    fun provideCoroutineDispatchers(schedulers: AppRxSchedulers) = AppCoroutineDispatchers(
-            io = schedulers.io.asCoroutineDispatcher(),
-            computation = schedulers.computation.asCoroutineDispatcher(),
-            main = Dispatchers.Main
-    )
+    fun provideBackgroundExecutor(): Executor {
+        val parallelism = (Runtime.getRuntime().availableProcessors() * 2)
+            .coerceIn(4, 32)
+        return if (Build.VERSION.SDK_INT < 24) {
+            Executors.newFixedThreadPool(parallelism)
+        } else {
+            Executors.newWorkStealingPool(parallelism)
+        }
+    }
 
     @Named("app")
     @Provides
@@ -91,10 +103,11 @@ class AppModule {
     @Provides
     @MediumDate
     fun provideMediumDateFormatter(application: TiviApplication): DateTimeFormatter {
-        val dateF = AndroidDateFormat.getMediumDateFormat(application) as SimpleDateFormat
-        return DateTimeFormatter.ofPattern(dateF.toPattern())
-                .withLocale(Locale.getDefault())
-                .withZone(ZoneId.systemDefault())
+        @Suppress("DEPRECATION")
+        return (AndroidDateFormat.getMediumDateFormat(application) as SimpleDateFormat)
+            .toThreeTenDateTimeFormatter()
+            .withLocale(application.resources.configuration.locale)
+            .withZone(ZoneId.systemDefault())
     }
 
     @Singleton
@@ -103,18 +116,45 @@ class AppModule {
     fun provideDateTimeFormatter(application: TiviApplication): DateTimeFormatter {
         val dateF = AndroidDateFormat.getMediumDateFormat(application) as SimpleDateFormat
         val timeF = AndroidDateFormat.getTimeFormat(application) as SimpleDateFormat
+
+        @Suppress("DEPRECATION")
         return DateTimeFormatter.ofPattern("${dateF.toPattern()} ${timeF.toPattern()}")
-                .withLocale(Locale.getDefault())
-                .withZone(ZoneId.systemDefault())
+            .withLocale(application.resources.configuration.locale)
+            .withZone(ZoneId.systemDefault())
     }
 
     @Singleton
     @Provides
     @ShortDate
     fun provideShortDateFormatter(application: TiviApplication): DateTimeFormatter {
-        val dateF = AndroidDateFormat.getDateFormat(application) as SimpleDateFormat
-        return DateTimeFormatter.ofPattern(dateF.toPattern())
-                .withLocale(Locale.getDefault())
-                .withZone(ZoneId.systemDefault())
+        @Suppress("DEPRECATION")
+        return (AndroidDateFormat.getDateFormat(application) as SimpleDateFormat)
+            .toThreeTenDateTimeFormatter()
+            .withLocale(application.resources.configuration.locale)
+            .withZone(ZoneId.systemDefault())
     }
+
+    @Singleton
+    @Provides
+    @ShortTime
+    fun provideShortTimeFormatter(application: TiviApplication): DateTimeFormatter {
+        @Suppress("DEPRECATION")
+        return (AndroidDateFormat.getTimeFormat(application) as SimpleDateFormat)
+            .toThreeTenDateTimeFormatter()
+    }
+
+    @Provides
+    @ProcessLifetime
+    fun provideLongLifetimeScope(): CoroutineScope {
+        return ProcessLifecycleOwner.get().lifecycle.coroutineScope
+    }
+
+    @Provides
+    @Singleton
+    fun provideAppBarConfiguration() = AppBarConfiguration.Builder(
+        R.id.navigation_followed,
+        R.id.navigation_watched,
+        R.id.navigation_discover,
+        R.id.navigation_search
+    ).build()
 }

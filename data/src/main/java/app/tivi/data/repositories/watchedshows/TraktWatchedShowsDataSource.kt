@@ -16,7 +16,6 @@
 
 package app.tivi.data.repositories.watchedshows
 
-import app.tivi.data.RetrofitRunner
 import app.tivi.data.entities.Result
 import app.tivi.data.entities.TiviShow
 import app.tivi.data.entities.WatchedShowEntry
@@ -24,28 +23,27 @@ import app.tivi.data.mappers.Mapper
 import app.tivi.data.mappers.TraktBaseShowToTiviShow
 import app.tivi.data.mappers.pairMapperOf
 import app.tivi.extensions.executeWithRetry
+import app.tivi.extensions.toResult
 import com.uwetrottmann.trakt5.entities.BaseShow
-import com.uwetrottmann.trakt5.entities.UserSlug
 import com.uwetrottmann.trakt5.enums.Extended
-import com.uwetrottmann.trakt5.services.Users
+import com.uwetrottmann.trakt5.services.Sync
 import javax.inject.Inject
 import javax.inject.Provider
 
-class TraktWatchedShowsDataSource @Inject constructor(
-    private val usersService: Provider<Users>,
-    private val retrofitRunner: RetrofitRunner,
-    private val showMapper: TraktBaseShowToTiviShow
-) : WatchedShowsDataSource {
+internal class TraktWatchedShowsDataSource @Inject constructor(
+    private val syncService: Provider<Sync>,
+    showMapper: TraktBaseShowToTiviShow
+) {
     private val entryMapper = object : Mapper<BaseShow, WatchedShowEntry> {
-        override fun map(from: BaseShow): WatchedShowEntry {
-            return WatchedShowEntry(showId = 0, lastWatched = from.last_watched_at)
+        override suspend fun map(from: BaseShow): WatchedShowEntry {
+            return WatchedShowEntry(showId = 0, lastWatched = from.last_watched_at!!)
         }
     }
     private val responseMapper = pairMapperOf(showMapper, entryMapper)
 
-    override suspend fun getWatchedShows(): Result<List<Pair<TiviShow, WatchedShowEntry>>> {
-        return retrofitRunner.executeForResponse(responseMapper) {
-            usersService.get().watchedShows(UserSlug.ME, Extended.NOSEASONS).executeWithRetry()
-        }
+    suspend operator fun invoke(): Result<List<Pair<TiviShow, WatchedShowEntry>>> {
+        return syncService.get().watchedShows(Extended.NOSEASONS)
+            .executeWithRetry()
+            .toResult(responseMapper)
     }
 }

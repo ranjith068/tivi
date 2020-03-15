@@ -19,15 +19,21 @@ package app.tivi.tmdb
 import com.uwetrottmann.tmdb2.Tmdb
 import dagger.Module
 import dagger.Provides
+import java.io.File
+import java.util.concurrent.TimeUnit
+import javax.inject.Named
+import javax.inject.Singleton
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import java.io.File
-import javax.inject.Named
-import javax.inject.Singleton
 
 @Module
 class TmdbModule {
+    @Provides
+    fun provideTmdbImageUrlProvider(tmdbManager: TmdbManager): TmdbImageUrlProvider {
+        return tmdbManager.getLatestImageProvider()
+    }
+
     @Singleton
     @Provides
     fun provideTmdb(
@@ -41,6 +47,9 @@ class TmdbModule {
                 builder.apply {
                     addInterceptor(interceptor)
                     cache(Cache(File(cacheDir, "tmdb_cache"), 10 * 1024 * 1024))
+                    connectTimeout(20, TimeUnit.SECONDS)
+                    readTimeout(20, TimeUnit.SECONDS)
+                    writeTimeout(20, TimeUnit.SECONDS)
                 }
             }
         }

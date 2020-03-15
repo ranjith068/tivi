@@ -16,13 +16,15 @@
 
 package app.tivi
 
+import androidx.work.Configuration
 import app.tivi.appinitializers.AppInitializers
 import app.tivi.inject.DaggerAppComponent
 import dagger.android.AndroidInjector
 import dagger.android.DaggerApplication
 import javax.inject.Inject
 
-class TiviApplication : DaggerApplication() {
+class TiviApplication : DaggerApplication(), Configuration.Provider {
+    @Inject lateinit var workConfiguration: Configuration
     @Inject lateinit var initializers: AppInitializers
 
     override fun onCreate() {
@@ -31,6 +33,8 @@ class TiviApplication : DaggerApplication() {
     }
 
     override fun applicationInjector(): AndroidInjector<out DaggerApplication> {
-        return DaggerAppComponent.builder().create(this)
+        return DaggerAppComponent.factory().create(this)
     }
+
+    override fun getWorkManagerConfiguration(): Configuration = workConfiguration
 }

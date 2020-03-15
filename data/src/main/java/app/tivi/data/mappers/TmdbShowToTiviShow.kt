@@ -23,13 +23,13 @@ import javax.inject.Singleton
 
 @Singleton
 class TmdbShowToTiviShow @Inject constructor() : Mapper<TvShow, TiviShow> {
-    override fun map(from: TvShow) = TiviShow(
-            tmdbId = from.id,
-            imdbId = from.external_ids?.imdb_id,
-            title = from.name,
-            summary = from.overview,
-            tmdbBackdropPath = from.backdrop_path,
-            tmdbPosterPath = from.poster_path,
-            homepage = from.homepage
+    override suspend fun map(from: TvShow) = TiviShow(
+        tmdbId = from.id,
+        imdbId = from.external_ids?.imdb_id,
+        title = from.name,
+        summary = from.overview,
+        homepage = from.homepage,
+        network = from.networks?.firstOrNull()?.name,
+        networkLogoPath = from.networks?.firstOrNull()?.logo_path
     )
 }

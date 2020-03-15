@@ -17,73 +17,102 @@
 package app.tivi.data.dao
 
 import android.database.sqlite.SQLiteConstraintException
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import app.tivi.data.DaggerTestComponent
+import app.tivi.data.TestDataSourceModule
+import app.tivi.data.TiviDatabase
 import app.tivi.data.daos.SeasonsDao
-import app.tivi.utils.BaseDatabaseTest
 import app.tivi.utils.deleteShow
 import app.tivi.utils.insertShow
-import app.tivi.utils.seasonOne
-import app.tivi.utils.seasonOneId
-import app.tivi.utils.seasonSpecials
-import app.tivi.utils.seasonTwo
+import app.tivi.utils.s0
+import app.tivi.utils.s1
+import app.tivi.utils.s1_id
+import app.tivi.utils.s2
 import app.tivi.utils.showId
+import javax.inject.Inject
+import kotlinx.coroutines.test.TestCoroutineScope
+import kotlinx.coroutines.test.runBlockingTest
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.CoreMatchers.nullValue
-import org.junit.Assert.assertThat
+import org.hamcrest.MatcherAssert.assertThat
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
-class SeasonsTest : BaseDatabaseTest() {
-    private lateinit var seasonsDao: SeasonsDao
+@RunWith(RobolectricTestRunner::class)
+class SeasonsTest {
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
-    override fun setup() {
-        super.setup()
-        seasonsDao = db.seasonsDao()
-        // We'll assume that there's a show in the db
-        insertShow(db)
+    private val testScope = TestCoroutineScope()
+
+    @Inject lateinit var database: TiviDatabase
+    @Inject lateinit var seasonsDao: SeasonsDao
+
+    @Before
+    fun setup() {
+        DaggerTestComponent.builder()
+            .testDataSourceModule(TestDataSourceModule(storeScope = testScope))
+            .build()
+            .inject(this)
+
+        runBlockingTest {
+            // We'll assume that there's a show in the db
+            insertShow(database)
+        }
     }
 
     @Test
-    fun insertSeason() {
-        seasonsDao.insert(seasonOne)
+    fun insertSeason() = testScope.runBlockingTest {
+        seasonsDao.insert(s1)
 
-        assertThat(seasonsDao.seasonWithId(seasonOneId), `is`(seasonOne))
+        assertThat(seasonsDao.seasonWithId(s1_id), `is`(s1))
     }
 
     @Test(expected = SQLiteConstraintException::class)
-    fun insert_withSameTraktId() {
-        seasonsDao.insert(seasonOne)
+    fun insert_withSameTraktId() = testScope.runBlockingTest {
+        seasonsDao.insert(s1)
 
         // Make a copy with a 0 id
-        val copy = seasonOne.copy(id = 0)
+        val copy = s1.copy(id = 0)
 
         seasonsDao.insert(copy)
     }
 
     @Test
-    fun specialsOrder() {
-        seasonsDao.insert(seasonSpecials)
-        seasonsDao.insert(seasonOne)
-        seasonsDao.insert(seasonTwo)
+    fun specialsOrder() = testScope.runBlockingTest {
+        seasonsDao.insert(s0)
+        seasonsDao.insert(s1)
+        seasonsDao.insert(s2)
 
         // Specials should always be last
         assertThat(seasonsDao.seasonsForShowId(showId),
-                `is`(listOf(seasonOne, seasonTwo, seasonSpecials))
+            `is`(listOf(s1, s2, s0))
         )
     }
 
     @Test
-    fun deleteSeason() {
-        seasonsDao.insert(seasonOne)
-        seasonsDao.delete(seasonOne)
+    fun deleteSeason() = testScope.runBlockingTest {
+        seasonsDao.insert(s1)
+        seasonsDao.deleteEntity(s1)
 
-        assertThat(seasonsDao.seasonWithId(seasonOneId), `is`(nullValue()))
+        assertThat(seasonsDao.seasonWithId(s1_id), `is`(nullValue()))
     }
 
     @Test
-    fun deleteShow_deletesSeason() {
-        seasonsDao.insert(seasonOne)
+    fun deleteShow_deletesSeason() = testScope.runBlockingTest {
+        seasonsDao.insert(s1)
         // Now delete show
-        deleteShow(db)
+        deleteShow(database)
 
-        assertThat(seasonsDao.seasonWithId(seasonOneId), `is`(nullValue()))
+        assertThat(seasonsDao.seasonWithId(s1_id), `is`(nullValue()))
+    }
+
+    @After
+    fun cleanup() {
+        testScope.cleanupTestCoroutines()
     }
 }

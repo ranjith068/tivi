@@ -16,41 +16,48 @@
 
 package app.tivi.data.repositories.search
 
-import app.tivi.data.entities.SearchResults
+import app.tivi.data.daos.ShowImagesDao
+import app.tivi.data.daos.TiviShowDao
 import app.tivi.data.entities.Success
-import app.tivi.data.repositories.shows.LocalShowStore
+import app.tivi.data.resultentities.ShowDetailed
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SearchRepository @Inject constructor(
-    private val localSearchStore: LocalSearchStore,
-    private val localShowStore: LocalShowStore,
+    private val searchStore: SearchStore,
+    private val showImagesDao: ShowImagesDao,
+    private val showDao: TiviShowDao,
     private val tmdbDataSource: TmdbSearchDataSource
 ) {
-    suspend fun search(query: String): SearchResults {
-        if (query.isEmpty()) {
-            return SearchResults(query, emptyList())
+    suspend fun search(query: String): List<ShowDetailed> {
+        if (query.isBlank()) {
+            return emptyList()
         }
 
-        val cacheValues = localSearchStore.getResults(query)
+        val cacheValues = searchStore.getResults(query)
         if (cacheValues != null) {
-            return SearchResults(query, cacheValues.map { localShowStore.getShow(it)!! })
+            return cacheValues.map { showDao.getShowWithIdDetailed(it)!! }
         }
 
         // We need to hit TMDb instead
-        val tmdbResult = tmdbDataSource.search(query)
-
-        val results = when (tmdbResult) {
-            is Success -> tmdbResult.data.map {
-                val id = localShowStore.getIdOrSavePlaceholder(it)
-                localShowStore.getShow(id)!!
-            }.also { results ->
-                // We need to save the search results
-                localSearchStore.setResults(query, results.map { it.id }.toLongArray())
+        return when (val tmdbResult = tmdbDataSource.search(query)) {
+            is Success -> {
+                tmdbResult.data.map { (show, images) ->
+                    val showId = showDao.getIdOrSavePlaceholder(show)
+                    if (images.isNotEmpty()) {
+                        showImagesDao.saveImagesIfEmpty(showId, images.map { it.copy(showId = showId) })
+                    }
+                    showId
+                }.also { results ->
+                    // We need to save the search results
+                    searchStore.setResults(query, results.toLongArray())
+                }.mapNotNull {
+                    // Finally map back to a TiviShow instance
+                    showDao.getShowWithIdDetailed(it)
+                }
             }
             else -> emptyList()
         }
-        return SearchResults(query, results)
     }
 }

@@ -24,7 +24,8 @@ import javax.inject.Singleton
 class SeasonIdToTraktIdMapper @Inject constructor(
     private val dao: SeasonsDao
 ) : Mapper<Long, Int> {
-    override fun map(from: Long): Int {
-        return dao.traktIdForId(from) ?: throw IllegalArgumentException("Trakt Id for season id $from does not exist")
+    override suspend fun map(from: Long): Int {
+        return dao.traktIdForId(from)
+            ?: throw IllegalArgumentException("Trakt Id for season id $from does not exist")
     }
 }
