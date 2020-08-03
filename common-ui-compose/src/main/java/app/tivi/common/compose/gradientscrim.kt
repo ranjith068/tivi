@@ -16,35 +16,55 @@
 
 package app.tivi.common.compose
 
-import androidx.compose.Composable
-import androidx.compose.remember
-import androidx.ui.core.DrawModifier
-import androidx.ui.core.draw
-import androidx.ui.geometry.Offset
-import androidx.ui.graphics.Color
-import androidx.ui.graphics.LinearGradientShader
-import androidx.ui.graphics.Paint
-import androidx.ui.unit.toRect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.state
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.VerticalGradient
 import kotlin.math.pow
 
+/**
+ * Draws a vertical gradient scrim in the foreground.
+ *
+ * @param color The color of the gradient scrim.
+ * @param decay The exponential decay to apply to the gradient. Defaults to `3.0f` which is
+ * a cubic decay.
+ * @param numStops The number of color stops to draw in the gradient. Higher numbers result in
+ * the higher visual quality at the cost of draw performance. Defaults to `16`.
+ */
 @Composable
-fun gradientScrimDrawModifier(baseColor: Color, numStops: Int = 16): DrawModifier {
-    val paint = remember { Paint() }
-
-    return draw { canvas, parentSize ->
-        val alpha = baseColor.alpha
-        val colors = List(numStops) { i ->
+fun Modifier.gradientScrim(
+    color: Color,
+    decay: Float = 3.0f,
+    numStops: Int = 16
+): Modifier = composed {
+    val colors = remember(color, numStops) {
+        val baseAlpha = color.alpha
+        List(numStops) { i ->
             val x = i * 1f / (numStops - 1)
-            val opacity = x.toDouble().pow(3.0).toFloat()
-            baseColor.copy(alpha = alpha * opacity)
+            val opacity = x.pow(decay)
+            color.copy(alpha = baseAlpha * opacity)
         }
+    }
 
-        paint.shader = LinearGradientShader(
-            Offset.zero,
-            Offset(0f, parentSize.height.value),
-            colors
+    var height by state { 0f }
+
+    val shader = remember(colors, height) {
+        VerticalGradient(
+            colors = colors,
+            startY = 0f,
+            endY = height
         )
+    }
 
-        canvas.drawRect(parentSize.toRect(), paint)
+    drawWithContent {
+        height = size.height
+        drawContent()
+        drawRect(brush = shader)
     }
 }

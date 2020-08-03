@@ -24,14 +24,15 @@ import android.view.MenuItem
 import android.view.ViewGroup
 import androidx.core.net.toUri
 import androidx.core.view.updatePadding
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.observe
 import androidx.navigation.fragment.findNavController
-import app.tivi.TiviFragmentWithBinding
+import app.tivi.FragmentWithBinding
 import app.tivi.common.imageloading.loadImageUrl
 import app.tivi.data.entities.SortOption
 import app.tivi.data.resultentities.FollowedShowEntryWithShow
 import app.tivi.extensions.doOnSizeChange
-import app.tivi.extensions.navigateToNavDestination
 import app.tivi.extensions.postponeEnterTransitionWithTimeout
 import app.tivi.extensions.scheduleStartPostponedTransitions
 import app.tivi.extensions.toActivityNavigatorExtras
@@ -41,16 +42,15 @@ import app.tivi.ui.SpacingItemDecorator
 import app.tivi.ui.authStateToolbarMenuBinder
 import app.tivi.ui.createSharedElementHelperForItem
 import app.tivi.ui.recyclerview.HideImeOnScrollListener
-import com.airbnb.mvrx.fragmentViewModel
-import com.airbnb.mvrx.withState
-import javax.inject.Inject
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collect
+import javax.inject.Inject
 
-class FollowedFragment : TiviFragmentWithBinding<FragmentFollowedBinding>() {
-    private val viewModel: FollowedViewModel by fragmentViewModel()
+@AndroidEntryPoint
+class FollowedFragment : FragmentWithBinding<FragmentFollowedBinding>() {
+    private val viewModel: FollowedViewModel by viewModels()
 
-    @Inject internal lateinit var followedViewModelFactory: FollowedViewModel.Factory
-    @Inject internal lateinit var controller: FollowedEpoxyController
+    @Inject @JvmField internal var controller: FollowedEpoxyController? = null
 
     private var currentActionMode: ActionMode? = null
 
@@ -75,24 +75,24 @@ class FollowedFragment : TiviFragmentWithBinding<FragmentFollowedBinding>() {
 
         binding.followedToolbar.setOnMenuItemClickListener {
             when (it.itemId) {
-                R.id.home_menu_user_login -> {
-                    viewModel.onLoginClicked()
+                R.id.home_menu_user_login, R.id.home_menu_user_avatar -> {
+                    findNavController().navigate(R.id.navigation_account)
+                    true
                 }
-                R.id.home_menu_user_avatar -> {
-                    findNavController().navigateToNavDestination(R.id.navigation_settings)
-                }
+                else -> false
             }
-            true
         }
 
         binding.followedAppBar.doOnSizeChange {
             binding.followedRv.updatePadding(top = it.height)
-            binding.followedSwipeRefresh.setProgressViewOffset(true, 0,
-                it.height + binding.followedSwipeRefresh.progressCircleDiameter / 2)
+            binding.followedSwipeRefresh.setProgressViewOffset(
+                true, 0,
+                it.height + binding.followedSwipeRefresh.progressCircleDiameter / 2
+            )
             true
         }
 
-        controller.callbacks = object : FollowedEpoxyController.Callbacks {
+        controller!!.callbacks = object : FollowedEpoxyController.Callbacks {
             override fun onItemClicked(item: FollowedShowEntryWithShow) {
                 // Let the ViewModel have the first go
                 if (viewModel.onItemClick(item.show)) {
@@ -114,27 +114,34 @@ class FollowedFragment : TiviFragmentWithBinding<FragmentFollowedBinding>() {
                 return viewModel.onItemLongClick(item.show)
             }
 
-            override fun onFilterChanged(filter: String) = viewModel.setFilter(filter)
+            override fun onFilterChanged(filter: String) {
+                viewModel.setFilter(filter)
+            }
 
-            override fun onSortSelected(sort: SortOption) = viewModel.setSort(sort)
+            override fun onSortSelected(sort: SortOption) {
+                viewModel.setSort(sort)
+            }
         }
 
         binding.followedRv.apply {
             addItemDecoration(SpacingItemDecorator(paddingLeft))
             addOnScrollListener(HideImeOnScrollListener())
-            setController(controller)
+            setController(controller!!)
         }
 
         binding.followedSwipeRefresh.setOnRefreshListener(viewModel::refresh)
 
         lifecycleScope.launchWhenStarted {
             viewModel.pagedList.collect {
-                controller.submitList(it)
+                controller?.submitList(it)
             }
         }
+
+        viewModel.liveData.observe(viewLifecycleOwner, ::render)
     }
 
-    override fun invalidate(binding: FragmentFollowedBinding) = withState(viewModel) { state ->
+    private fun render(state: FollowedViewState) {
+        val binding = requireBinding()
         if (binding.state == null) {
             // First time we've had state, start any postponed transitions
             scheduleStartPostponedTransitions()
@@ -151,13 +158,13 @@ class FollowedFragment : TiviFragmentWithBinding<FragmentFollowedBinding>() {
         authStateMenuItemBinder?.bind(state.authState, state.user)
 
         binding.state = state
-        controller.state = state
+        controller!!.state = state
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         currentActionMode?.finish()
-        controller.clear()
+        controller?.clear()
         authStateMenuItemBinder = null
     }
 

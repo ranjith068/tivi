@@ -41,11 +41,11 @@ import com.uwetrottmann.trakt5.enums.HistoryType
 import com.uwetrottmann.trakt5.services.Seasons
 import com.uwetrottmann.trakt5.services.Sync
 import com.uwetrottmann.trakt5.services.Users
+import org.threeten.bp.OffsetDateTime
+import org.threeten.bp.ZoneOffset
 import java.lang.IllegalArgumentException
 import javax.inject.Inject
 import javax.inject.Provider
-import org.threeten.bp.OffsetDateTime
-import org.threeten.bp.ZoneOffset
 
 class TraktSeasonsEpisodesDataSource @Inject constructor(
     private val showIdToTraktIdMapper: ShowIdToTraktIdMapper,
@@ -71,8 +71,10 @@ class TraktSeasonsEpisodesDataSource @Inject constructor(
         val showTraktId = showIdToTraktIdMapper.map(showId)
             ?: return ErrorResult(IllegalArgumentException("No Trakt ID for show with ID: $showId"))
 
-        return usersService.get().history(UserSlug.ME, HistoryType.SHOWS, showTraktId,
-            0, 10000, Extended.NOSEASONS, since, null)
+        return usersService.get().history(
+            UserSlug.ME, HistoryType.SHOWS, showTraktId,
+            0, 10000, Extended.NOSEASONS, since, null
+        )
             .executeWithRetry()
             .toResult(pairMapperOf(episodeMapper, historyItemMapper))
     }
@@ -81,8 +83,10 @@ class TraktSeasonsEpisodesDataSource @Inject constructor(
         seasonId: Long,
         since: OffsetDateTime?
     ): Result<List<Pair<Episode, EpisodeWatchEntry>>> {
-        return usersService.get().history(UserSlug.ME, HistoryType.SEASONS, seasonIdToTraktIdMapper.map(seasonId),
-            0, 10000, Extended.NOSEASONS, since, null)
+        return usersService.get().history(
+            UserSlug.ME, HistoryType.SEASONS, seasonIdToTraktIdMapper.map(seasonId),
+            0, 10000, Extended.NOSEASONS, since, null
+        )
             .executeWithRetry()
             .toResult(pairMapperOf(episodeMapper, historyItemMapper))
     }
@@ -91,10 +95,16 @@ class TraktSeasonsEpisodesDataSource @Inject constructor(
         episodeId: Long,
         since: OffsetDateTime?
     ): Result<List<EpisodeWatchEntry>> {
-        return usersService.get().history(UserSlug.ME, HistoryType.EPISODES, episodeIdToTraktIdMapper.map(episodeId),
-            0, 10000, Extended.NOSEASONS, since, null)
-            .executeWithRetry()
-            .toResult(historyItemMapper.forLists())
+        return usersService.get().history(
+            UserSlug.ME,
+            HistoryType.EPISODES,
+            episodeIdToTraktIdMapper.map(episodeId),
+            0, // page
+            10000, // limit
+            Extended.NOSEASONS, // extended info
+            since, // since date
+            null // end date
+        ).executeWithRetry().toResult(historyItemMapper.forLists())
     }
 
     override suspend fun addEpisodeWatches(watches: List<EpisodeWatchEntry>): Result<Unit> {
@@ -112,7 +122,8 @@ class TraktSeasonsEpisodesDataSource @Inject constructor(
     override suspend fun removeEpisodeWatches(watches: List<EpisodeWatchEntry>): Result<Unit> {
         val items = SyncItems()
         items.ids = watches.mapNotNull { it.traktId }
-        return syncService.get().deleteItemsFromWatchedHistory(items).executeWithRetry()
+        return syncService.get().deleteItemsFromWatchedHistory(items)
+            .executeWithRetry()
             .toResultUnit()
     }
 }

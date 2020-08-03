@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Google LLC
+ * Copyright 2020 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,50 +27,46 @@ import app.tivi.data.entities.Genre
 import app.tivi.data.entities.Season
 import app.tivi.data.entities.ShowStatus
 import app.tivi.data.entities.TiviShow
-import app.tivi.data.resultentities.SeasonWithEpisodesAndWatches
-import app.tivi.data.views.FollowedShowsWatchStats
-import app.tivi.inject.PerActivity
 import app.tivi.ui.GenreStringer
 import app.tivi.util.TiviDateFormatter
-import java.util.Locale
-import javax.inject.Inject
+import dagger.hilt.android.qualifiers.ActivityContext
 import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.ZoneId
 import org.threeten.bp.ZonedDateTime
 import org.threeten.bp.format.TextStyle
+import java.util.Locale
+import javax.inject.Inject
 
-internal class ShowDetailsTextCreator @Inject constructor(
-    @PerActivity private val context: Context,
+class ShowDetailsTextCreator @Inject constructor(
+    @ActivityContext private val context: Context,
     private val tiviDateFormatter: TiviDateFormatter
 ) {
-    fun seasonSummaryText(season: SeasonWithEpisodesAndWatches): CharSequence {
-        val toWatch = season.numberAiredToWatch
-        val toAir = season.numberToAir
-        val watched = season.numberWatched
-
+    fun seasonSummaryText(
+        watched: Int,
+        toWatch: Int,
+        toAir: Int,
+        nextToAirDate: OffsetDateTime? = null
+    ): CharSequence {
         val text = StringBuilder()
         if (watched > 0) {
             text.append(context.getString(R.string.season_summary_watched, watched))
         }
         if (toWatch > 0) {
-            if (text.isNotEmpty()) {
-                text.append(" \u2022 ")
-            }
+            if (text.isNotEmpty()) text.append(" \u2022 ")
             text.append(context.getString(R.string.season_summary_to_watch, toWatch))
         }
         if (toAir > 0) {
-            if (text.isNotEmpty()) {
-                text.append(" \u2022 ")
-            }
+            if (text.isNotEmpty()) text.append(" \u2022 ")
             text.append(context.getString(R.string.season_summary_to_air, toAir))
 
-            val nextToAir = season.nextToAir
-            if (nextToAir?.firstAired != null) {
+            if (nextToAirDate != null) {
                 text.append(". ")
-                text.append(context.getString(
-                    R.string.next_prefix,
-                    tiviDateFormatter.formatShortRelativeTime(nextToAir.firstAired!!)
-                ))
+                text.append(
+                    context.getString(
+                        R.string.next_prefix,
+                        tiviDateFormatter.formatShortRelativeTime(nextToAirDate)
+                    )
+                )
             }
         }
         return text
@@ -117,15 +113,18 @@ internal class ShowDetailsTextCreator @Inject constructor(
         return genres?.joinToString(", ") { context.getString(GenreStringer.getLabel(it)) }
     }
 
-    fun followedShowEpisodeWatchStatus(stats: FollowedShowsWatchStats?): CharSequence {
-        return if (stats != null && stats.watchedEpisodeCount < stats.episodeCount) {
-            context.getString(R.string.followed_watch_stats_to_watch,
-                stats.episodeCount - stats.watchedEpisodeCount).parseAsHtml()
-        } else if (stats != null && stats.watchedEpisodeCount > 0) {
-            context.getString(R.string.followed_watch_stats_complete)
-        } else {
-            return ""
+    fun followedShowEpisodeWatchStatus(
+        watchedEpisodeCount: Int,
+        episodeCount: Int
+    ): CharSequence = when {
+        watchedEpisodeCount < episodeCount -> {
+            context.getString(
+                R.string.followed_watch_stats_to_watch,
+                episodeCount - watchedEpisodeCount
+            ).parseAsHtml()
         }
+        watchedEpisodeCount > 0 -> context.getString(R.string.followed_watch_stats_complete)
+        else -> ""
     }
 
     fun airsText(show: TiviShow): CharSequence? {

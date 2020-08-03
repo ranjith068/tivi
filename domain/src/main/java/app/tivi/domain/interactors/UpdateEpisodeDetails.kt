@@ -18,21 +18,21 @@ package app.tivi.domain.interactors
 
 import app.tivi.data.repositories.episodes.SeasonsEpisodesRepository
 import app.tivi.domain.Interactor
-import app.tivi.inject.ProcessLifetime
 import app.tivi.util.AppCoroutineDispatchers
-import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 class UpdateEpisodeDetails @Inject constructor(
     private val seasonsEpisodesRepository: SeasonsEpisodesRepository,
-    dispatchers: AppCoroutineDispatchers,
-    @ProcessLifetime val processScope: CoroutineScope
+    private val dispatchers: AppCoroutineDispatchers
+
 ) : Interactor<UpdateEpisodeDetails.Params>() {
-    override val scope: CoroutineScope = processScope + dispatchers.io
 
     override suspend fun doWork(params: Params) {
-        seasonsEpisodesRepository.updateEpisode(params.episodeId)
+        withContext(dispatchers.io) {
+            seasonsEpisodesRepository.updateEpisode(params.episodeId)
+        }
     }
 
     data class Params(val episodeId: Long, val forceLoad: Boolean)

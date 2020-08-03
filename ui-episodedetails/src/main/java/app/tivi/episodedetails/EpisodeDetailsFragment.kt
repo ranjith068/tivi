@@ -23,27 +23,44 @@ import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
 import android.widget.FrameLayout
 import androidx.core.os.bundleOf
-import app.tivi.TiviFragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import app.tivi.common.compose.observeWindowInsets
+import app.tivi.extensions.viewModelProviderFactoryOf
 import app.tivi.util.TiviDateFormatter
-import com.airbnb.mvrx.fragmentViewModel
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-class EpisodeDetailsFragment : TiviFragment(), EpisodeDetailsViewModel.FactoryProvider {
+@AndroidEntryPoint
+class EpisodeDetailsFragment : BottomSheetDialogFragment() {
+    @Inject @JvmField internal var vmFactory: EpisodeDetailsViewModel.Factory? = null
+
     companion object {
+        private const val ARG_KEY_ID = "episode_id"
+
         @JvmStatic
         fun create(id: Long): EpisodeDetailsFragment {
             return EpisodeDetailsFragment().apply {
-                arguments = bundleOf("episode_id" to id)
+                arguments = bundleOf(ARG_KEY_ID to id)
             }
         }
     }
 
-    private val viewModel: EpisodeDetailsViewModel by fragmentViewModel()
+    private val viewModel: EpisodeDetailsViewModel by viewModels {
+        viewModelProviderFactoryOf {
+            vmFactory!!.create(requireArguments().getLong(ARG_KEY_ID))
+        }
+    }
 
-    @Inject internal lateinit var tiviDateFormatter: TiviDateFormatter
-    @Inject internal lateinit var episodeDetailsViewModelFactory: EpisodeDetailsViewModel.Factory
-    @Inject internal lateinit var textCreator: EpisodeDetailsTextCreator
+    @Inject @JvmField internal var tiviDateFormatter: TiviDateFormatter? = null
+    @Inject @JvmField internal var textCreator: EpisodeDetailsTextCreator? = null
+
+    private val pendingActions = Channel<EpisodeDetailsAction>(Channel.BUFFERED)
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -54,16 +71,25 @@ class EpisodeDetailsFragment : TiviFragment(), EpisodeDetailsViewModel.FactoryPr
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
 
             composeEpisodeDetails(
-                viewLifecycleOwner,
-                viewModel.observeAsLiveData(),
+                viewModel.liveData,
                 observeWindowInsets(),
-                viewModel::submitAction,
-                tiviDateFormatter
+                { pendingActions.offer(it) },
+                tiviDateFormatter!!
             )
         }
     }
 
-    override fun invalidate() = Unit
+    override fun onStart() {
+        super.onStart()
+        (requireDialog().findViewById(R.id.container) as View).fitsSystemWindows = false
 
-    override fun provideFactory(): EpisodeDetailsViewModel.Factory = episodeDetailsViewModelFactory
+        lifecycleScope.launch {
+            pendingActions.consumeAsFlow().collect { action ->
+                when (action) {
+                    is Close -> requireView().post { dismiss() }
+                    else -> viewModel.submitAction(action)
+                }
+            }
+        }
+    }
 }

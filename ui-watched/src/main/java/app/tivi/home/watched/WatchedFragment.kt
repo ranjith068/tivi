@@ -24,14 +24,15 @@ import android.view.MenuItem
 import android.view.ViewGroup
 import androidx.core.net.toUri
 import androidx.core.view.updatePadding
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.observe
 import androidx.navigation.fragment.findNavController
-import app.tivi.TiviFragmentWithBinding
+import app.tivi.FragmentWithBinding
 import app.tivi.common.imageloading.loadImageUrl
 import app.tivi.data.entities.SortOption
 import app.tivi.data.resultentities.WatchedShowEntryWithShow
 import app.tivi.extensions.doOnSizeChange
-import app.tivi.extensions.navigateToNavDestination
 import app.tivi.extensions.postponeEnterTransitionWithTimeout
 import app.tivi.extensions.scheduleStartPostponedTransitions
 import app.tivi.extensions.toActivityNavigatorExtras
@@ -41,16 +42,15 @@ import app.tivi.ui.SpacingItemDecorator
 import app.tivi.ui.authStateToolbarMenuBinder
 import app.tivi.ui.createSharedElementHelperForItem
 import app.tivi.ui.recyclerview.HideImeOnScrollListener
-import com.airbnb.mvrx.fragmentViewModel
-import com.airbnb.mvrx.withState
-import javax.inject.Inject
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collect
+import javax.inject.Inject
 
-class WatchedFragment : TiviFragmentWithBinding<FragmentWatchedBinding>() {
-    private val viewModel: WatchedViewModel by fragmentViewModel()
+@AndroidEntryPoint
+class WatchedFragment : FragmentWithBinding<FragmentWatchedBinding>() {
+    private val viewModel: WatchedViewModel by viewModels()
 
-    @Inject internal lateinit var watchedViewModelFactory: WatchedViewModel.Factory
-    @Inject internal lateinit var controller: WatchedEpoxyController
+    @Inject @JvmField internal var controller: WatchedEpoxyController? = null
 
     private var authStateMenuItemBinder: AuthStateMenuItemBinder? = null
 
@@ -75,14 +75,12 @@ class WatchedFragment : TiviFragmentWithBinding<FragmentWatchedBinding>() {
 
         binding.watchedToolbar.setOnMenuItemClickListener {
             when (it.itemId) {
-                R.id.home_menu_user_login -> {
-                    viewModel.onLoginClicked()
+                R.id.home_menu_user_login, R.id.home_menu_user_avatar -> {
+                    findNavController().navigate(R.id.navigation_account)
+                    true
                 }
-                R.id.home_menu_user_avatar -> {
-                    findNavController().navigateToNavDestination(R.id.navigation_settings)
-                }
+                else -> false
             }
-            true
         }
         binding.watchedToolbar.setNavigationOnClickListener {
             findNavController().navigateUp()
@@ -90,12 +88,14 @@ class WatchedFragment : TiviFragmentWithBinding<FragmentWatchedBinding>() {
 
         binding.watchedAppBar.doOnSizeChange {
             binding.watchedRv.updatePadding(top = it.height)
-            binding.watchedSwipeRefresh.setProgressViewOffset(true, 0,
-                it.height + binding.watchedSwipeRefresh.progressCircleDiameter / 2)
+            binding.watchedSwipeRefresh.setProgressViewOffset(
+                true, 0,
+                it.height + binding.watchedSwipeRefresh.progressCircleDiameter / 2
+            )
             true
         }
 
-        controller.callbacks = object : WatchedEpoxyController.Callbacks {
+        controller!!.callbacks = object : WatchedEpoxyController.Callbacks {
             override fun onItemClicked(item: WatchedShowEntryWithShow) {
                 // Let the ViewModel have the first go
                 if (viewModel.onItemClick(item.show)) {
@@ -125,19 +125,22 @@ class WatchedFragment : TiviFragmentWithBinding<FragmentWatchedBinding>() {
         binding.watchedRv.apply {
             addItemDecoration(SpacingItemDecorator(paddingLeft))
             addOnScrollListener(HideImeOnScrollListener())
-            setController(controller)
+            setController(controller!!)
         }
 
         binding.watchedSwipeRefresh.setOnRefreshListener(viewModel::refresh)
 
         lifecycleScope.launchWhenStarted {
             viewModel.pagedList.collect {
-                controller.submitList(it)
+                controller!!.submitList(it)
             }
         }
+
+        viewModel.liveData.observe(viewLifecycleOwner, ::render)
     }
 
-    override fun invalidate(binding: FragmentWatchedBinding) = withState(viewModel) { state ->
+    private fun render(state: WatchedViewState) {
+        val binding = requireBinding()
         if (binding.state == null) {
             // First time we've had state, start any postponed transitions
             scheduleStartPostponedTransitions()
@@ -154,13 +157,13 @@ class WatchedFragment : TiviFragmentWithBinding<FragmentWatchedBinding>() {
         authStateMenuItemBinder?.bind(state.authState, state.user)
 
         binding.state = state
-        controller.state = state
+        controller!!.state = state
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         currentActionMode?.finish()
-        controller.clear()
+        controller?.clear()
         authStateMenuItemBinder = null
     }
 

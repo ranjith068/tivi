@@ -26,11 +26,11 @@ import app.tivi.data.syncers.ItemSyncerResult
 import app.tivi.extensions.asyncOrAwait
 import app.tivi.trakt.TraktAuthState
 import app.tivi.util.Logger
+import org.threeten.bp.Instant
+import org.threeten.bp.OffsetDateTime
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
-import org.threeten.bp.Instant
-import org.threeten.bp.OffsetDateTime
 
 @Singleton
 class FollowedShowsRepository @Inject constructor(
@@ -92,8 +92,8 @@ class FollowedShowsRepository @Inject constructor(
 
     suspend fun syncFollowedShows(): ItemSyncerResult<FollowedShowEntry> {
         return asyncOrAwait("sync_followed_shows") {
-            val listId = when (TraktAuthState.LOGGED_IN) {
-                traktAuthState.get() -> getFollowedTraktListId()
+            val listId = when (traktAuthState.get()) {
+                TraktAuthState.LOGGED_IN -> getFollowedTraktListId()
                 else -> null
             }
 

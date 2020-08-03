@@ -16,6 +16,7 @@
 
 package app.tivi.home.popular
 
+import androidx.hilt.lifecycle.ViewModelInject
 import app.tivi.base.InvokeStatus
 import app.tivi.data.resultentities.PopularEntryWithShow
 import app.tivi.domain.interactors.ChangeShowFollowStatus
@@ -23,23 +24,16 @@ import app.tivi.domain.interactors.UpdatePopularShows
 import app.tivi.domain.observers.ObservePagedPopularShows
 import app.tivi.util.AppCoroutineDispatchers
 import app.tivi.util.EntryViewModel
-import app.tivi.util.EntryViewState
 import app.tivi.util.Logger
-import com.airbnb.mvrx.FragmentViewModelContext
-import com.airbnb.mvrx.MvRxViewModelFactory
-import com.airbnb.mvrx.ViewModelContext
-import com.squareup.inject.assisted.Assisted
-import com.squareup.inject.assisted.AssistedInject
 import kotlinx.coroutines.flow.Flow
 
-class PopularShowsViewModel @AssistedInject constructor(
-    @Assisted initialState: EntryViewState,
+class PopularShowsViewModel @ViewModelInject constructor(
     override val dispatchers: AppCoroutineDispatchers,
     override val pagingInteractor: ObservePagedPopularShows,
     private val interactor: UpdatePopularShows,
     override val logger: Logger,
     override val changeShowFollowStatus: ChangeShowFollowStatus
-) : EntryViewModel<PopularEntryWithShow, ObservePagedPopularShows>(initialState) {
+) : EntryViewModel<PopularEntryWithShow, ObservePagedPopularShows>() {
     init {
         pagingInteractor(ObservePagedPopularShows.Params(pageListConfig, boundaryCallback))
 
@@ -54,20 +48,5 @@ class PopularShowsViewModel @AssistedInject constructor(
 
     override fun callRefresh(fromUser: Boolean): Flow<InvokeStatus> {
         return interactor(UpdatePopularShows.Params(UpdatePopularShows.Page.REFRESH, fromUser))
-    }
-
-    @AssistedInject.Factory
-    interface Factory {
-        fun create(initialState: EntryViewState): PopularShowsViewModel
-    }
-
-    companion object : MvRxViewModelFactory<PopularShowsViewModel, EntryViewState> {
-        override fun create(
-            viewModelContext: ViewModelContext,
-            state: EntryViewState
-        ): PopularShowsViewModel? {
-            val fragment: PopularShowsFragment = (viewModelContext as FragmentViewModelContext).fragment()
-            return fragment.popularShowsViewModelFactory.create(state)
-        }
     }
 }

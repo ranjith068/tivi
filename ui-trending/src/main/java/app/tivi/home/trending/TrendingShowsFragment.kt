@@ -22,22 +22,21 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import androidx.core.net.toUri
+import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import app.tivi.SharedElementHelper
 import app.tivi.common.entrygrid.databinding.FragmentEntryGridBinding
 import app.tivi.common.layouts.PosterGridItemBindingModel_
-import app.tivi.data.entities.findHighestRatedPoster
 import app.tivi.data.resultentities.TrendingEntryWithShow
 import app.tivi.extensions.toActivityNavigatorExtras
 import app.tivi.util.EntryGridEpoxyController
 import app.tivi.util.EntryGridFragment
 import com.airbnb.epoxy.EpoxyModel
-import com.airbnb.mvrx.fragmentViewModel
-import javax.inject.Inject
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class TrendingShowsFragment : EntryGridFragment<TrendingEntryWithShow, TrendingShowsViewModel>() {
-    override val viewModel: TrendingShowsViewModel by fragmentViewModel()
-    @Inject lateinit var trendingShowsViewModelFactory: TrendingShowsViewModel.Factory
+    override val viewModel: TrendingShowsViewModel by viewModels()
 
     override fun onViewCreated(binding: FragmentEntryGridBinding, savedInstanceState: Bundle?) {
         super.onViewCreated(binding, savedInstanceState)
@@ -52,19 +51,23 @@ class TrendingShowsFragment : EntryGridFragment<TrendingEntryWithShow, TrendingS
             override fun buildItemModel(item: TrendingEntryWithShow): EpoxyModel<*> {
                 return PosterGridItemBindingModel_()
                     .id(item.generateStableId())
-                    .posterImage(item.images.findHighestRatedPoster())
+                    .posterImage(item.poster)
                     .tiviShow(item.show)
                     .transitionName(item.show.homepage)
                     .selected(item.show.id in state.selectedShowIds)
-                    .clickListener(View.OnClickListener {
-                        if (viewModel.onItemClick(item.show)) {
-                            return@OnClickListener
+                    .clickListener(
+                        View.OnClickListener {
+                            if (viewModel.onItemClick(item.show)) {
+                                return@OnClickListener
+                            }
+                            onItemClicked(item)
                         }
-                        onItemClicked(item)
-                    })
-                    .longClickListener(View.OnLongClickListener {
-                        viewModel.onItemLongClick(item.show)
-                    })
+                    )
+                    .longClickListener(
+                        View.OnLongClickListener {
+                            viewModel.onItemLongClick(item.show)
+                        }
+                    )
             }
         }
     }

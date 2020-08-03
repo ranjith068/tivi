@@ -16,10 +16,10 @@
 
 package app.tivi.home.followed
 
+import androidx.hilt.lifecycle.ViewModelInject
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagedList
-import app.tivi.AppNavigator
-import app.tivi.TiviMvRxViewModel
+import app.tivi.ReduxViewModel
 import app.tivi.data.entities.RefreshType
 import app.tivi.data.entities.SortOption
 import app.tivi.data.entities.TiviShow
@@ -27,47 +27,40 @@ import app.tivi.data.resultentities.FollowedShowEntryWithShow
 import app.tivi.domain.interactors.ChangeShowFollowStatus
 import app.tivi.domain.interactors.UpdateFollowedShows
 import app.tivi.domain.invoke
-import app.tivi.domain.launchObserve
 import app.tivi.domain.observers.ObservePagedFollowedShows
 import app.tivi.domain.observers.ObserveTraktAuthState
 import app.tivi.domain.observers.ObserveUserDetails
 import app.tivi.trakt.TraktAuthState
 import app.tivi.util.ObservableLoadingCounter
 import app.tivi.util.ShowStateSelector
-import app.tivi.util.collectFrom
-import com.airbnb.mvrx.FragmentViewModelContext
-import com.airbnb.mvrx.MvRxViewModelFactory
-import com.airbnb.mvrx.ViewModelContext
-import com.squareup.inject.assisted.Assisted
-import com.squareup.inject.assisted.AssistedInject
+import app.tivi.util.collectInto
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
-internal class FollowedViewModel @AssistedInject constructor(
-    @Assisted initialState: FollowedViewState,
+internal class FollowedViewModel @ViewModelInject constructor(
     private val updateFollowedShows: UpdateFollowedShows,
     private val observePagedFollowedShows: ObservePagedFollowedShows,
     private val observeTraktAuthState: ObserveTraktAuthState,
     private val changeShowFollowStatus: ChangeShowFollowStatus,
-    private val observeUserDetails: ObserveUserDetails,
-    private val appNavigator: AppNavigator
-) : TiviMvRxViewModel<FollowedViewState>(initialState) {
+    private val observeUserDetails: ObserveUserDetails
+) : ReduxViewModel<FollowedViewState>(
+    FollowedViewState()
+) {
     private val boundaryCallback = object : PagedList.BoundaryCallback<FollowedShowEntryWithShow>() {
         override fun onZeroItemsLoaded() {
-            setState { copy(isEmpty = filter.isNullOrEmpty()) }
+            viewModelScope.launchSetState { copy(isEmpty = filter.isNullOrEmpty()) }
         }
 
         override fun onItemAtEndLoaded(itemAtEnd: FollowedShowEntryWithShow) {
-            setState { copy(isEmpty = false) }
+            viewModelScope.launchSetState { copy(isEmpty = false) }
         }
 
         override fun onItemAtFrontLoaded(itemAtFront: FollowedShowEntryWithShow) {
-            setState { copy(isEmpty = false) }
+            viewModelScope.launchSetState { copy(isEmpty = false) }
         }
     }
 
@@ -82,45 +75,43 @@ internal class FollowedViewModel @AssistedInject constructor(
             loadingState.observable
                 .distinctUntilChanged()
                 .debounce(2000)
-                .execute {
-                    copy(isLoading = it() ?: false)
-                }
+                .collectAndSetState { copy(isLoading = it) }
         }
 
         viewModelScope.launch {
-            showSelection.observeSelectedShowIds().collect {
-                setState { copy(selectedShowIds = it) }
-            }
+            showSelection.observeSelectedShowIds()
+                .collectAndSetState { copy(selectedShowIds = it) }
         }
 
         viewModelScope.launch {
-            showSelection.observeIsSelectionOpen().collect {
-                setState { copy(selectionOpen = it) }
-            }
+            showSelection.observeIsSelectionOpen()
+                .collectAndSetState { copy(selectionOpen = it) }
         }
 
-        viewModelScope.launchObserve(observeTraktAuthState) { flow ->
-            flow.distinctUntilChanged().onEach {
-                if (it == TraktAuthState.LOGGED_IN) {
-                    refreshFollowed(false)
-                }
-            }.execute { copy(authState = it() ?: TraktAuthState.LOGGED_OUT) }
+        viewModelScope.launch {
+            observeTraktAuthState.observe()
+                .distinctUntilChanged()
+                .onEach { if (it == TraktAuthState.LOGGED_IN) refresh(false) }
+                .collectAndSetState { copy(authState = it) }
         }
         observeTraktAuthState()
 
-        viewModelScope.launchObserve(observeUserDetails) {
-            it.execute { copy(user = it()) }
+        viewModelScope.launch {
+            observeUserDetails.observe()
+                .collectAndSetState { copy(user = it) }
         }
         observeUserDetails(ObserveUserDetails.Params("me"))
 
         // Set the available sorting options
-        setState {
-            copy(availableSorts = listOf(
-                SortOption.SUPER_SORT,
-                SortOption.LAST_WATCHED,
-                SortOption.ALPHABETICAL,
-                SortOption.DATE_ADDED
-            ))
+        viewModelScope.launchSetState {
+            copy(
+                availableSorts = listOf(
+                    SortOption.SUPER_SORT,
+                    SortOption.LAST_WATCHED,
+                    SortOption.ALPHABETICAL,
+                    SortOption.DATE_ADDED
+                )
+            )
         }
 
         // Subscribe to state changes, so update the observed data source
@@ -144,17 +135,19 @@ internal class FollowedViewModel @AssistedInject constructor(
 
     private fun refresh(fromUser: Boolean) {
         viewModelScope.launch {
-            observeTraktAuthState.observe()
-                .first { it == TraktAuthState.LOGGED_IN }
-                .also { refreshFollowed(fromUser) }
+            observeTraktAuthState.observe().first().also { authState ->
+                if (authState == TraktAuthState.LOGGED_IN) {
+                    refreshFollowed(fromUser)
+                }
+            }
         }
     }
 
     fun setFilter(filter: String) {
-        setState { copy(filter = filter, filterActive = filter.isNotEmpty()) }
+        viewModelScope.launchSetState { copy(filter = filter, filterActive = filter.isNotEmpty()) }
     }
 
-    fun setSort(sort: SortOption) = setState {
+    fun setSort(sort: SortOption) = viewModelScope.launchSetState {
         require(availableSorts.contains(sort))
         copy(sort = sort)
     }
@@ -172,44 +165,29 @@ internal class FollowedViewModel @AssistedInject constructor(
     }
 
     fun unfollowSelectedShows() {
-        changeShowFollowStatus(
-            ChangeShowFollowStatus.Params(
-                showSelection.getSelectedShowIds(),
-                ChangeShowFollowStatus.Action.UNFOLLOW)
-        )
+        viewModelScope.launch {
+            changeShowFollowStatus.executeSync(
+                ChangeShowFollowStatus.Params(
+                    showSelection.getSelectedShowIds(),
+                    ChangeShowFollowStatus.Action.UNFOLLOW
+                )
+            )
+        }
         showSelection.clearSelection()
     }
 
-    fun onLoginClicked() {
-        appNavigator.startLogin()
-    }
-
     private fun refreshFollowed(fromInteraction: Boolean) {
-        updateFollowedShows(UpdateFollowedShows.Params(fromInteraction, RefreshType.QUICK)).also {
-            viewModelScope.launch {
-                loadingState.collectFrom(it)
-            }
+        viewModelScope.launch {
+            updateFollowedShows(UpdateFollowedShows.Params(fromInteraction, RefreshType.QUICK))
+                .collectInto(loadingState)
         }
     }
 
-    @AssistedInject.Factory
-    interface Factory {
-        fun create(initialState: FollowedViewState): FollowedViewModel
-    }
-
-    companion object : MvRxViewModelFactory<FollowedViewModel, FollowedViewState> {
+    companion object {
         private val PAGING_CONFIG = PagedList.Config.Builder()
             .setPageSize(60)
             .setPrefetchDistance(20)
             .setEnablePlaceholders(false)
             .build()
-
-        override fun create(
-            viewModelContext: ViewModelContext,
-            state: FollowedViewState
-        ): FollowedViewModel? {
-            val fragment: FollowedFragment = (viewModelContext as FragmentViewModelContext).fragment()
-            return fragment.followedViewModelFactory.create(state)
-        }
     }
 }

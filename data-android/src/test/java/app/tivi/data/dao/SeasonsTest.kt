@@ -17,9 +17,8 @@
 package app.tivi.data.dao
 
 import android.database.sqlite.SQLiteConstraintException
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import app.tivi.data.DaggerTestComponent
-import app.tivi.data.TestDataSourceModule
+import app.tivi.data.DatabaseModuleBinds
+import app.tivi.data.DatabaseTest
 import app.tivi.data.TiviDatabase
 import app.tivi.data.daos.SeasonsDao
 import app.tivi.utils.deleteShow
@@ -29,35 +28,26 @@ import app.tivi.utils.s1
 import app.tivi.utils.s1_id
 import app.tivi.utils.s2
 import app.tivi.utils.showId
-import javax.inject.Inject
-import kotlinx.coroutines.test.TestCoroutineScope
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
 import kotlinx.coroutines.test.runBlockingTest
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.CoreMatchers.nullValue
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import javax.inject.Inject
 
-@RunWith(RobolectricTestRunner::class)
-class SeasonsTest {
-    @get:Rule
-    val instantTaskExecutorRule = InstantTaskExecutorRule()
-
-    private val testScope = TestCoroutineScope()
-
+@UninstallModules(DatabaseModuleBinds::class)
+@HiltAndroidTest
+class SeasonsTest : DatabaseTest() {
     @Inject lateinit var database: TiviDatabase
     @Inject lateinit var seasonsDao: SeasonsDao
 
     @Before
     fun setup() {
-        DaggerTestComponent.builder()
-            .testDataSourceModule(TestDataSourceModule(storeScope = testScope))
-            .build()
-            .inject(this)
+        hiltRule.inject()
 
         runBlockingTest {
             // We'll assume that there's a show in the db
@@ -89,7 +79,8 @@ class SeasonsTest {
         seasonsDao.insert(s2)
 
         // Specials should always be last
-        assertThat(seasonsDao.seasonsForShowId(showId),
+        assertThat(
+            seasonsDao.seasonsForShowId(showId),
             `is`(listOf(s1, s2, s0))
         )
     }

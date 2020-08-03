@@ -19,15 +19,10 @@ package app.tivi
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.doOnPreDraw
-import app.tivi.util.Logger
-import dagger.android.support.DaggerAppCompatActivity
-import javax.inject.Inject
 
-abstract class TiviActivity : DaggerAppCompatActivity() {
-    // Dummy injection
-    @Inject lateinit var logger: Logger
-
+abstract class TiviActivity : AppCompatActivity() {
     private var postponedTransition = false
 
     override fun onPostCreate(savedInstanceState: Bundle?) {

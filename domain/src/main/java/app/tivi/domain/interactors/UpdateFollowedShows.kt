@@ -25,45 +25,47 @@ import app.tivi.data.repositories.followedshows.FollowedShowsRepository
 import app.tivi.data.repositories.showimages.ShowImagesStore
 import app.tivi.data.repositories.shows.ShowStore
 import app.tivi.domain.Interactor
-import app.tivi.extensions.parallelForEach
-import app.tivi.inject.ProcessLifetime
 import app.tivi.util.AppCoroutineDispatchers
-import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 class UpdateFollowedShows @Inject constructor(
     private val followedShowsRepository: FollowedShowsRepository,
     private val seasonEpisodeRepository: SeasonsEpisodesRepository,
     private val showStore: ShowStore,
     private val showImagesStore: ShowImagesStore,
-    dispatchers: AppCoroutineDispatchers,
-    @ProcessLifetime val processScope: CoroutineScope
+    private val dispatchers: AppCoroutineDispatchers
 ) : Interactor<UpdateFollowedShows.Params>() {
-    override val scope: CoroutineScope = processScope + dispatchers.io
 
-    override suspend fun doWork(params: Params) = coroutineScope {
-        if (params.forceRefresh || followedShowsRepository.needFollowedShowsSync()) {
-            followedShowsRepository.syncFollowedShows()
-        }
-
-        // Finally sync the seasons/episodes and watches
-        followedShowsRepository.getFollowedShows().parallelForEach {
-            showStore.fetch(it.showId)
-            showImagesStore.fetchCollection(it.showId)
-
-            // Download the seasons + episodes
-            if (params.forceRefresh || seasonEpisodeRepository.needShowSeasonsUpdate(it.showId)) {
-                seasonEpisodeRepository.updateSeasonsEpisodes(it.showId)
+    override suspend fun doWork(params: Params) {
+        withContext(dispatchers.io) {
+            if (params.forceRefresh || followedShowsRepository.needFollowedShowsSync()) {
+                followedShowsRepository.syncFollowedShows()
             }
 
-            seasonEpisodeRepository.updateShowEpisodeWatches(
-                it.showId,
-                params.type,
-                params.forceRefresh,
-                showStore.cachedOnly(it.showId)?.traktDataUpdate
-            )
+            // Finally sync the seasons/episodes and watches
+            followedShowsRepository.getFollowedShows().asFlow().collect {
+                showStore.fetch(it.showId)
+                showImagesStore.fetchCollection(it.showId)
+
+                ensureActive()
+                // Download the seasons + episodes
+                if (params.forceRefresh || seasonEpisodeRepository.needShowSeasonsUpdate(it.showId)) {
+                    seasonEpisodeRepository.updateSeasonsEpisodes(it.showId)
+                }
+
+                ensureActive()
+                seasonEpisodeRepository.updateShowEpisodeWatches(
+                    it.showId,
+                    params.type,
+                    params.forceRefresh,
+                    showStore.cachedOnly(it.showId)?.traktDataUpdate
+                )
+            }
         }
     }
 

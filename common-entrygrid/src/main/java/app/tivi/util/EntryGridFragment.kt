@@ -23,10 +23,10 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.observe
 import androidx.navigation.fragment.findNavController
-import androidx.navigation.ui.AppBarConfiguration
 import androidx.recyclerview.widget.DefaultItemAnimator
-import app.tivi.TiviFragmentWithBinding
+import app.tivi.FragmentWithBinding
 import app.tivi.api.UiError
 import app.tivi.api.UiLoading
 import app.tivi.common.entrygrid.R
@@ -39,20 +39,16 @@ import app.tivi.extensions.scheduleStartPostponedTransitions
 import app.tivi.ui.ProgressTimeLatch
 import app.tivi.ui.SpacingItemDecorator
 import app.tivi.ui.transitions.GridToGridTransitioner
-import com.airbnb.mvrx.withState
 import com.google.android.material.snackbar.Snackbar
-import javax.inject.Inject
 import kotlinx.coroutines.flow.collect
 
 @SuppressLint("ValidFragment")
-abstract class EntryGridFragment<LI, VM> : TiviFragmentWithBinding<FragmentEntryGridBinding>()
+abstract class EntryGridFragment<LI, VM> : FragmentWithBinding<FragmentEntryGridBinding>()
     where LI : EntryWithShow<out Entry>, VM : EntryViewModel<LI, *> {
     protected abstract val viewModel: VM
 
     private lateinit var swipeRefreshLatch: ProgressTimeLatch
     private lateinit var controller: EntryGridEpoxyController<LI>
-
-    @Inject lateinit var appBarConfiguration: AppBarConfiguration
 
     private var currentActionMode: ActionMode? = null
 
@@ -87,8 +83,10 @@ abstract class EntryGridFragment<LI, VM> : TiviFragmentWithBinding<FragmentEntry
 
         binding.gridAppbar.doOnSizeChange {
             binding.gridRecyclerview.updatePadding(top = it.height)
-            binding.gridSwipeRefresh.setProgressViewOffset(true, 0,
-                it.height + binding.gridSwipeRefresh.progressCircleDiameter / 2)
+            binding.gridSwipeRefresh.setProgressViewOffset(
+                true, 0,
+                it.height + binding.gridSwipeRefresh.progressCircleDiameter / 2
+            )
             true
         }
 
@@ -106,19 +104,17 @@ abstract class EntryGridFragment<LI, VM> : TiviFragmentWithBinding<FragmentEntry
         lifecycleScope.launchWhenStarted {
             viewModel.pagedList.collect { controller.submitList(it) }
         }
+
+        viewModel.liveData.observe(viewLifecycleOwner, ::render)
     }
 
-    override fun invalidate(binding: FragmentEntryGridBinding) = withState(viewModel) { state ->
+    private fun render(state: EntryViewState) {
         controller.state = state
 
         when (val status = state.status) {
             is UiError -> {
                 swipeRefreshLatch.refreshing = false
-                Snackbar.make(requireView(),
-                    status.exception?.localizedMessage
-                        ?: getString(R.string.error_generic),
-                    Snackbar.LENGTH_SHORT
-                ).show()
+                Snackbar.make(requireView(), status.message, Snackbar.LENGTH_SHORT).show()
             }
             is UiLoading -> swipeRefreshLatch.refreshing = status.fullRefresh
             else -> swipeRefreshLatch.refreshing = false
@@ -132,8 +128,10 @@ abstract class EntryGridFragment<LI, VM> : TiviFragmentWithBinding<FragmentEntry
         }
 
         if (currentActionMode != null) {
-            currentActionMode?.title = getString(R.string.selection_title,
-                state.selectedShowIds.size)
+            currentActionMode?.title = getString(
+                R.string.selection_title,
+                state.selectedShowIds.size
+            )
         }
 
         if (state.isLoaded) {

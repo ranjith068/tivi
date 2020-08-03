@@ -16,73 +16,49 @@
 
 package app.tivi.home.search
 
+import androidx.hilt.lifecycle.ViewModelInject
 import androidx.lifecycle.viewModelScope
-import app.tivi.TiviMvRxViewModel
+import app.tivi.ReduxViewModel
 import app.tivi.domain.interactors.SearchShows
-import app.tivi.domain.launchObserve
 import app.tivi.util.ObservableLoadingCounter
-import com.airbnb.mvrx.FragmentViewModelContext
-import com.airbnb.mvrx.MvRxViewModelFactory
-import com.airbnb.mvrx.ViewModelContext
-import com.squareup.inject.assisted.Assisted
-import com.squareup.inject.assisted.AssistedInject
-import kotlinx.coroutines.async
-import kotlinx.coroutines.channels.ConflatedBroadcastChannel
-import kotlinx.coroutines.channels.sendBlocking
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
-internal class SearchViewModel @AssistedInject constructor(
-    @Assisted initialState: SearchViewState,
+internal class SearchViewModel @ViewModelInject constructor(
     private val searchShows: SearchShows
-) : TiviMvRxViewModel<SearchViewState>(initialState) {
-    private val searchQuery = ConflatedBroadcastChannel<String>()
+) : ReduxViewModel<SearchViewState>(
+    SearchViewState()
+) {
+    private val searchQuery = MutableStateFlow("")
     private val loadingState = ObservableLoadingCounter()
 
     init {
         viewModelScope.launch {
-            searchQuery.asFlow()
-                .debounce(300)
+            searchQuery.debounce(300)
                 .collectLatest { query ->
-                    loadingState.addLoader()
-                    val job = async(searchShows.dispatcher) {
+                    val job = launch {
+                        loadingState.addLoader()
                         searchShows(SearchShows.Params(query))
                     }
                     job.invokeOnCompletion { loadingState.removeLoader() }
-                    job.await()
+                    job.join()
                 }
         }
 
         viewModelScope.launch {
-            loadingState.observable.collect { setState { copy(refreshing = it) } }
+            loadingState.observable.collectAndSetState { copy(refreshing = it) }
         }
 
-        viewModelScope.launchObserve(searchShows) {
-            it.execute { copy(searchResults = it()) }
+        viewModelScope.launch {
+            searchShows.observe().collectAndSetState { copy(searchResults = it) }
         }
     }
 
     fun setSearchQuery(query: String) {
-        searchQuery.sendBlocking(query)
+        searchQuery.value = query
     }
 
     fun clearQuery() = setSearchQuery("")
-
-    @AssistedInject.Factory
-    interface Factory {
-        fun create(initialState: SearchViewState): SearchViewModel
-    }
-
-    companion object : MvRxViewModelFactory<SearchViewModel, SearchViewState> {
-        override fun create(
-            viewModelContext: ViewModelContext,
-            state: SearchViewState
-        ): SearchViewModel? {
-            val fragment: SearchFragment = (viewModelContext as FragmentViewModelContext).fragment()
-            return fragment.searchViewModelFactory.create(state)
-        }
-    }
 }

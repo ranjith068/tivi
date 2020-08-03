@@ -18,7 +18,7 @@ package app.tivi.util
 
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagedList
-import app.tivi.TiviMvRxViewModel
+import app.tivi.ReduxViewModel
 import app.tivi.api.UiError
 import app.tivi.api.UiIdle
 import app.tivi.api.UiLoading
@@ -28,31 +28,30 @@ import app.tivi.base.InvokeError
 import app.tivi.base.InvokeStarted
 import app.tivi.base.InvokeStatus
 import app.tivi.base.InvokeSuccess
-import app.tivi.base.InvokeTimeout
 import app.tivi.data.Entry
 import app.tivi.data.entities.TiviShow
 import app.tivi.data.resultentities.EntryWithShow
 import app.tivi.domain.PagingInteractor
 import app.tivi.domain.interactors.ChangeShowFollowStatus
-import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 abstract class EntryViewModel<LI : EntryWithShow<out Entry>, PI : PagingInteractor<*, LI>>(
-    initialState: EntryViewState,
     private val pageSize: Int = 21
-) : TiviMvRxViewModel<EntryViewState>(initialState) {
+) : ReduxViewModel<EntryViewState>(
+    EntryViewState()
+) {
     protected abstract val dispatchers: AppCoroutineDispatchers
     protected abstract val pagingInteractor: PI
     protected abstract val logger: Logger
     protected abstract val changeShowFollowStatus: ChangeShowFollowStatus
 
-    private val messages = ConflatedBroadcastChannel<UiStatus>(UiIdle)
-    private val loaded = ConflatedBroadcastChannel(false)
+    private val messages = MutableStateFlow<UiStatus>(UiIdle)
+    private val loaded = MutableStateFlow(false)
 
     val pagedList: Flow<PagedList<LI>>
         get() = pagingInteractor.observe()
@@ -70,57 +69,47 @@ abstract class EntryViewModel<LI : EntryWithShow<out Entry>, PI : PagingInteract
         override fun onItemAtEndLoaded(itemAtEnd: LI) = onListScrolledToEnd()
 
         override fun onItemAtFrontLoaded(itemAtFront: LI) {
-            loaded.offer(true)
+            loaded.value = true
         }
 
         override fun onZeroItemsLoaded() {
-            loaded.offer(true)
+            loaded.value = true
         }
     }
 
     protected fun launchObserves() {
         viewModelScope.launch {
-            messages.asFlow().execute {
-                copy(status = it() ?: UiSuccess)
-            }
+            messages.collectAndSetState { copy(status = it) }
         }
 
         viewModelScope.launch {
-            loaded.asFlow().execute {
-                copy(isLoaded = it() ?: false)
-            }
+            loaded.collectAndSetState { copy(isLoaded = it) }
         }
 
         viewModelScope.launch {
-            showSelection.observeIsSelectionOpen().execute {
-                copy(selectionOpen = it() ?: false)
-            }
+            showSelection.observeIsSelectionOpen()
+                .collectAndSetState { copy(selectionOpen = it) }
         }
 
         viewModelScope.launch {
-            showSelection.observeSelectedShowIds().execute {
-                copy(selectedShowIds = it() ?: emptySet())
-            }
+            showSelection.observeSelectedShowIds()
+                .collectAndSetState { copy(selectedShowIds = it) }
         }
     }
 
     fun onListScrolledToEnd() {
-        callLoadMore().also {
-            viewModelScope.launch {
-                it.catch {
-                    messages.send(UiError(it))
-                }.map {
+        viewModelScope.launch {
+            callLoadMore()
+                .catch { messages.value = UiError(it) }
+                .map {
                     when (it) {
                         InvokeSuccess -> UiSuccess
                         InvokeStarted -> UiLoading(false)
                         is InvokeError -> UiError(it.throwable)
-                        InvokeTimeout -> UiError()
                         else -> UiIdle
                     }
-                }.collect {
-                    messages.send(it)
                 }
-            }
+                .collect { messages.value = it }
         }
     }
 
@@ -139,32 +128,30 @@ abstract class EntryViewModel<LI : EntryWithShow<out Entry>, PI : PagingInteract
     }
 
     fun followSelectedShows() {
-        changeShowFollowStatus(
-            ChangeShowFollowStatus.Params(
-                showSelection.getSelectedShowIds(),
-                ChangeShowFollowStatus.Action.FOLLOW,
-                deferDataFetch = true
+        viewModelScope.launch {
+            changeShowFollowStatus.executeSync(
+                ChangeShowFollowStatus.Params(
+                    showSelection.getSelectedShowIds(),
+                    ChangeShowFollowStatus.Action.FOLLOW,
+                    deferDataFetch = true
+                )
             )
-        )
+        }
         showSelection.clearSelection()
     }
 
     protected fun refresh(fromUser: Boolean) {
-        callRefresh(fromUser).also {
-            viewModelScope.launch {
-                it.catch {
-                    messages.send(UiError(it))
-                }.map {
+        viewModelScope.launch {
+            callRefresh(fromUser)
+                .catch { messages.value = UiError(it) }
+                .map {
                     when (it) {
                         InvokeSuccess -> UiSuccess
                         InvokeStarted -> UiLoading(true)
-                        InvokeTimeout -> UiError()
                         else -> UiIdle
                     }
-                }.collect {
-                    messages.send(it)
                 }
-            }
+                .collect { messages.value = it }
         }
     }
 

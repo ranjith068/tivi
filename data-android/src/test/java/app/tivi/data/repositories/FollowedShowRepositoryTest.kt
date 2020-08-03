@@ -16,17 +16,15 @@
 
 package app.tivi.data.repositories
 
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import app.tivi.data.DaggerTestComponent
-import app.tivi.data.TestDataSourceModule
+import app.tivi.data.DatabaseModuleBinds
+import app.tivi.data.DatabaseTest
 import app.tivi.data.TiviDatabase
 import app.tivi.data.daos.FollowedShowsDao
 import app.tivi.data.entities.ErrorResult
 import app.tivi.data.entities.Success
+import app.tivi.data.repositories.episodes.EpisodeDataSourceBinds
 import app.tivi.data.repositories.followedshows.FollowedShowsRepository
 import app.tivi.data.repositories.followedshows.TraktFollowedShowsDataSource
-import app.tivi.utils.SuccessFakeShowDataSource
-import app.tivi.utils.SuccessFakeShowImagesDataSource
 import app.tivi.utils.followedShow1Local
 import app.tivi.utils.followedShow1Network
 import app.tivi.utils.followedShow1PendingDelete
@@ -37,27 +35,21 @@ import app.tivi.utils.insertFollowedShow
 import app.tivi.utils.insertShow
 import app.tivi.utils.show
 import app.tivi.utils.show2
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
 import io.mockk.coEvery
-import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineScope
 import kotlinx.coroutines.test.runBlockingTest
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.`is`
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import javax.inject.Inject
 
-@RunWith(RobolectricTestRunner::class)
-class FollowedShowRepositoryTest {
-    @get:Rule
-    val instantTaskExecutorRule = InstantTaskExecutorRule()
-
-    private val testScope = TestCoroutineScope()
-
+@UninstallModules(DatabaseModuleBinds::class, EpisodeDataSourceBinds::class)
+@HiltAndroidTest
+class FollowedShowRepositoryTest : DatabaseTest() {
     @Inject lateinit var followShowsDao: FollowedShowsDao
     @Inject lateinit var repository: FollowedShowsRepository
     @Inject lateinit var database: TiviDatabase
@@ -65,17 +57,7 @@ class FollowedShowRepositoryTest {
 
     @Before
     fun setup() {
-        DaggerTestComponent.builder()
-            .testDataSourceModule(
-                TestDataSourceModule(
-                    traktShowDataSource = SuccessFakeShowDataSource,
-                    tmdbShowDataSource = SuccessFakeShowDataSource,
-                    tmdbShowImagesDataSource = SuccessFakeShowImagesDataSource,
-                    storeScope = testScope
-                )
-            )
-            .build()
-            .inject(this)
+        hiltRule.inject()
 
         runBlocking {
             // We'll assume that there's a show in the db
@@ -90,8 +72,10 @@ class FollowedShowRepositoryTest {
 
         repository.syncFollowedShows()
 
-        assertThat(repository.getFollowedShows(),
-            `is`(listOf(followedShow1Local)))
+        assertThat(
+            repository.getFollowedShows(),
+            `is`(listOf(followedShow1Local))
+        )
     }
 
     @Test
@@ -103,8 +87,10 @@ class FollowedShowRepositoryTest {
 
         repository.syncFollowedShows()
 
-        assertThat(repository.getFollowedShows(),
-            `is`(emptyList()))
+        assertThat(
+            repository.getFollowedShows(),
+            `is`(emptyList())
+        )
     }
 
     @Test
@@ -116,8 +102,10 @@ class FollowedShowRepositoryTest {
 
         repository.syncFollowedShows()
 
-        assertThat(repository.getFollowedShows(),
-            `is`(listOf(followedShow2Local)))
+        assertThat(
+            repository.getFollowedShows(),
+            `is`(listOf(followedShow2Local))
+        )
     }
 
     @Test
@@ -129,8 +117,10 @@ class FollowedShowRepositoryTest {
 
         repository.syncFollowedShows()
 
-        assertThat(repository.getFollowedShows(),
-            `is`(emptyList()))
+        assertThat(
+            repository.getFollowedShows(),
+            `is`(emptyList())
+        )
     }
 
     @Test
@@ -142,8 +132,10 @@ class FollowedShowRepositoryTest {
 
         repository.syncFollowedShows()
 
-        assertThat(repository.getFollowedShows(),
-            `is`(listOf(followedShow1Local)))
+        assertThat(
+            repository.getFollowedShows(),
+            `is`(listOf(followedShow1Local))
+        )
     }
 
     @After

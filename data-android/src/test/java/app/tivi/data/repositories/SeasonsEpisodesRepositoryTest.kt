@@ -16,14 +16,14 @@
 
 package app.tivi.data.repositories
 
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import app.tivi.data.DaggerTestComponent
-import app.tivi.data.TestDataSourceModule
+import app.tivi.data.DatabaseModuleBinds
+import app.tivi.data.DatabaseTest
 import app.tivi.data.TiviDatabase
 import app.tivi.data.daos.EpisodeWatchEntryDao
 import app.tivi.data.daos.EpisodesDao
 import app.tivi.data.daos.SeasonsDao
 import app.tivi.data.entities.Success
+import app.tivi.data.repositories.episodes.EpisodeDataSourceBinds
 import app.tivi.data.repositories.episodes.EpisodeWatchStore
 import app.tivi.data.repositories.episodes.SeasonsEpisodesDataSource
 import app.tivi.data.repositories.episodes.SeasonsEpisodesRepository
@@ -40,11 +40,11 @@ import app.tivi.utils.s2_episodes
 import app.tivi.utils.s2_id
 import app.tivi.utils.s2e1
 import app.tivi.utils.showId
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
 import io.mockk.coEvery
-import javax.inject.Inject
 import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineScope
 import kotlinx.coroutines.test.runBlockingTest
 import kotlinx.coroutines.withTimeout
 import org.hamcrest.MatcherAssert.assertThat
@@ -52,19 +52,13 @@ import org.hamcrest.Matchers.`is`
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 import org.threeten.bp.OffsetDateTime
+import javax.inject.Inject
 
-@RunWith(RobolectricTestRunner::class)
-class SeasonsEpisodesRepositoryTest {
-    @get:Rule
-    val instantTaskExecutorRule = InstantTaskExecutorRule()
-
-    private val testScope = TestCoroutineScope()
-
+@UninstallModules(DatabaseModuleBinds::class, EpisodeDataSourceBinds::class)
+@HiltAndroidTest
+class SeasonsEpisodesRepositoryTest : DatabaseTest() {
     @Inject lateinit var database: TiviDatabase
     @Inject lateinit var episodeWatchDao: EpisodeWatchEntryDao
     @Inject lateinit var seasonsDao: SeasonsDao
@@ -75,10 +69,7 @@ class SeasonsEpisodesRepositoryTest {
 
     @Before
     fun setup() {
-        DaggerTestComponent.builder()
-            .testDataSourceModule(TestDataSourceModule(storeScope = testScope))
-            .build()
-            .inject(this)
+        hiltRule.inject()
 
         runBlocking {
             // We'll assume that there's a show in the db

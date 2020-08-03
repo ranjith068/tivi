@@ -16,28 +16,32 @@
 
 package app.tivi.common.compose
 
-import androidx.animation.AnimationEndReason
-import androidx.compose.Composable
-import androidx.compose.onCommit
-import androidx.compose.state
-import androidx.ui.animation.animatedFloat
-import androidx.ui.core.DensityAmbient
-import androidx.ui.core.LayoutDirection
-import androidx.ui.core.LayoutDirectionAmbient
-import androidx.ui.core.OnPositioned
-import androidx.ui.foundation.gestures.DragDirection
-import androidx.ui.foundation.gestures.Draggable
-import androidx.ui.layout.Container
-import androidx.ui.layout.Stack
-import androidx.ui.unit.IntPx
-import androidx.ui.unit.IntPxSize
+import androidx.compose.animation.animatedFloat
+import androidx.compose.animation.core.AnimationEndReason
+import androidx.compose.foundation.Box
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.layout.Stack
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.state
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.WithConstraints
+import androidx.compose.ui.gesture.scrollorientationlocking.Orientation
+import androidx.compose.ui.platform.DensityAmbient
+import androidx.compose.ui.platform.LayoutDirectionAmbient
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import app.tivi.common.compose.SwipeDirection.END
+import app.tivi.common.compose.SwipeDirection.START
 import kotlin.math.absoluteValue
 
 enum class SwipeDirection {
     START, END
 }
 
-private val defaultDirections = listOf(SwipeDirection.START, SwipeDirection.END)
+private val defaultDirections = listOf(START, END)
 
 @Composable
 fun SwipeToDismiss(
@@ -45,93 +49,80 @@ fun SwipeToDismiss(
     onSwipeComplete: (SwipeDirection) -> Unit,
     swipeDirections: List<SwipeDirection> = defaultDirections,
     swipeCompletePercentage: Float = 0.6f,
-    backgroundChildren: @Composable() (swipeProgress: Float, wouldCompleteOnRelease: Boolean) -> Unit,
-    swipeChildren: @Composable() (swipeProgress: Float, wouldCompleteOnRelease: Boolean) -> Unit
+    backgroundChildren: @Composable (swipeProgress: Float, wouldCompleteOnRelease: Boolean) -> Unit,
+    swipeChildren: @Composable (swipeProgress: Float, wouldCompleteOnRelease: Boolean) -> Unit
 ) = Stack {
-    val position = animatedFloat(initVal = 0f).apply {
-        setBounds(0f, 0f)
-    }
-    var size by state { IntPxSize(IntPx.Zero, IntPx.Zero) }
+    val position = animatedFloat(initVal = 0f)
     var progress by state { 0f }
 
-    val layoutDir = LayoutDirectionAmbient.current
+    Box(modifier = Modifier.matchParentSize()) {
+        backgroundChildren(progress, progress.absoluteValue >= swipeCompletePercentage)
+    }
 
-    OnPositioned { coordinates ->
-        size = coordinates.size
-
+    WithConstraints {
+        val layoutDirection = LayoutDirectionAmbient.current
+        // Update the drag bounds depending on the size
         when {
-            SwipeDirection.START in swipeDirections && SwipeDirection.END in swipeDirections -> {
-                position.setBounds(
-                    -coordinates.size.width.value.toFloat(),
-                    coordinates.size.width.value.toFloat()
-                )
+            START in swipeDirections && END in swipeDirections -> {
+                position.setBounds(-constraints.maxWidth.toFloat(), constraints.maxWidth.toFloat())
             }
-            SwipeDirection.START in swipeDirections && layoutDir == LayoutDirection.Ltr ||
-                SwipeDirection.END in swipeDirections && layoutDir == LayoutDirection.Rtl -> {
-                position.setBounds(-coordinates.size.width.value.toFloat(), 0f)
+            layoutDirection == LayoutDirection.Ltr && START in swipeDirections
+                || layoutDirection == LayoutDirection.Rtl && END in swipeDirections -> {
+                position.setBounds(-constraints.maxWidth.toFloat(), 0f)
             }
-            SwipeDirection.END in swipeDirections && layoutDir == LayoutDirection.Ltr ||
-                SwipeDirection.START in swipeDirections && layoutDir == LayoutDirection.Rtl -> {
-                position.setBounds(0f, coordinates.size.width.value.toFloat())
+            layoutDirection == LayoutDirection.Ltr && END in swipeDirections
+                || layoutDirection == LayoutDirection.Rtl && START in swipeDirections -> {
+                position.setBounds(0f, constraints.maxWidth.toFloat())
             }
         }
-    }
 
-    if (position.value != 0f) {
-        with(DensityAmbient.current) {
-            Container(width = size.width.toDp(), height = size.height.toDp()) {
-                backgroundChildren(progress, progress.absoluteValue >= swipeCompletePercentage)
+        val draggable = Modifier.draggable(
+            orientation = Orientation.Horizontal,
+            onDragStopped = {
+                // TODO: look at using fling and velocity here
+                if (position.max > 0f && position.value / position.max >= swipeCompletePercentage) {
+                    position.animateTo(
+                        position.max,
+                        onEnd = { endReason, _ ->
+                            if (endReason != AnimationEndReason.Interrupted) {
+                                onSwipeComplete(if (layoutDirection == LayoutDirection.Ltr) END else START)
+                            }
+                        }
+                    )
+                } else if (position.min < 0f && position.value / position.min >= swipeCompletePercentage) {
+                    position.animateTo(
+                        position.min,
+                        onEnd = { endReason, _ ->
+                            if (endReason != AnimationEndReason.Interrupted) {
+                                onSwipeComplete(if (layoutDirection == LayoutDirection.Ltr) START else END)
+                            }
+                        }
+                    )
+                } else position.animateTo(0f)
             }
-        }
-    }
+        ) { delta ->
+            val oldPosition = position.value
+            position.snapTo(oldPosition + delta)
+            val newPosition = position.value
 
-    Draggable(
-        dragDirection = DragDirection.Horizontal,
-        dragValue = position,
-        onDragStopped = {
-            when {
-                position.max > 0f && position.value / position.max >= swipeCompletePercentage -> {
-                    position.animateTo(position.max, onEnd = { endReason, _ ->
-                        if (endReason != AnimationEndReason.Interrupted) {
-                            onSwipeComplete(
-                                when (layoutDir) {
-                                    LayoutDirection.Ltr -> SwipeDirection.END
-                                    LayoutDirection.Rtl -> SwipeDirection.START
-                                }
-                            )
-                        }
-                    })
-                }
-                position.min < 0f && position.value / position.min >= swipeCompletePercentage -> {
-                    position.animateTo(position.min, onEnd = { endReason, _ ->
-                        if (endReason != AnimationEndReason.Interrupted) {
-                            onSwipeComplete(
-                                when (layoutDir) {
-                                    LayoutDirection.Ltr -> SwipeDirection.START
-                                    LayoutDirection.Rtl -> SwipeDirection.END
-                                }
-                            )
-                        }
-                    })
-                }
-                else -> position.animateTo(0f)
-            }
-        },
-        onDragValueChangeRequested = { position.snapTo(it) }
-    ) {
-        onCommit(position.value) {
-            // When the position changes, update the progress and call onSwipe
             progress = when {
-                position.value < 0f && position.min < 0f -> position.value / position.min
-                position.value > 0f && position.max > 0f -> position.value / position.max
+                newPosition < 0f && position.min < 0f -> newPosition / position.min
+                newPosition > 0f && position.max > 0f -> newPosition / position.max
                 else -> 0f
             }
             // If we have an onSwipe callback, invoke it
             onSwipe?.invoke(progress)
+
+            // Return the difference in position (delta)
+            newPosition - oldPosition
         }
 
-        WithOffset(xOffset = position) {
-            swipeChildren(progress, progress.absoluteValue >= swipeCompletePercentage)
-        }
+        val xOffset = with(DensityAmbient.current) { position.value.toDp() }
+        Box(
+            modifier = draggable.offset(x = xOffset, y = 0.dp),
+            children = {
+                swipeChildren(progress, progress.absoluteValue >= swipeCompletePercentage)
+            }
+        )
     }
 }

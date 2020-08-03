@@ -16,41 +16,39 @@
 
 package app.tivi.inject
 
+import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
-import android.os.Build
-import android.text.format.DateFormat as AndroidDateFormat
-import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.lifecycle.coroutineScope
 import androidx.navigation.ui.AppBarConfiguration
-import androidx.preference.PreferenceManager
 import app.tivi.BuildConfig
-import app.tivi.TiviApplication
-import app.tivi.extensions.toThreeTenDateTimeFormatter
+import app.tivi.extensions.withLocale
 import app.tivi.home.followed.R
+import app.tivi.tmdb.TmdbModule
+import app.tivi.trakt.TraktModule
 import app.tivi.util.AppCoroutineDispatchers
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import dagger.Module
 import dagger.Provides
-import io.reactivex.disposables.CompositeDisposable
+import dagger.hilt.InstallIn
+import dagger.hilt.android.components.ApplicationComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import org.threeten.bp.format.DateTimeFormatter
+import org.threeten.bp.format.FormatStyle
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import javax.inject.Named
 import javax.inject.Singleton
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import org.threeten.bp.ZoneId
-import org.threeten.bp.format.DateTimeFormatter
 
-@Module(includes = [AppModuleBinds::class])
-class AppModule {
-    @Provides
-    fun provideContext(application: TiviApplication): Context = application.applicationContext
-
+@InstallIn(ApplicationComponent::class)
+@Module(
+    includes = [
+        TraktModule::class,
+        TmdbModule::class
+    ]
+)
+object AppModule {
     @ApplicationId
     @Provides
-    fun provideApplicationId(application: TiviApplication): String = application.packageName
+    fun provideApplicationId(application: Application): String = application.packageName
 
     @Singleton
     @Provides
@@ -60,29 +58,12 @@ class AppModule {
         main = Dispatchers.Main
     )
 
-    @Singleton
-    @Provides
-    fun provideBackgroundExecutor(): Executor {
-        val parallelism = (Runtime.getRuntime().availableProcessors() * 2)
-            .coerceIn(4, 32)
-        return if (Build.VERSION.SDK_INT < 24) {
-            Executors.newFixedThreadPool(parallelism)
-        } else {
-            Executors.newWorkStealingPool(parallelism)
-        }
-    }
-
-    @Named("app")
-    @Provides
-    @Singleton
-    fun provideAppPreferences(application: TiviApplication): SharedPreferences {
-        return PreferenceManager.getDefaultSharedPreferences(application)
-    }
-
     @Provides
     @Singleton
     @Named("cache")
-    fun provideCacheDir(application: TiviApplication): File = application.cacheDir
+    fun provideCacheDir(
+        @ApplicationContext context: Context
+    ): File = context.cacheDir
 
     @Provides
     @Named("tmdb-api")
@@ -96,57 +77,40 @@ class AppModule {
     @Named("trakt-client-secret")
     fun provideTraktClientSecret(): String = BuildConfig.TRAKT_CLIENT_SECRET
 
-    @Provides
-    fun provideCompositeDisposable() = CompositeDisposable()
-
     @Singleton
     @Provides
     @MediumDate
-    fun provideMediumDateFormatter(application: TiviApplication): DateTimeFormatter {
-        @Suppress("DEPRECATION")
-        return (AndroidDateFormat.getMediumDateFormat(application) as SimpleDateFormat)
-            .toThreeTenDateTimeFormatter()
-            .withLocale(application.resources.configuration.locale)
-            .withZone(ZoneId.systemDefault())
+    fun provideMediumDateFormatter(
+        @ApplicationContext context: Context
+    ): DateTimeFormatter {
+        return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(context)
     }
 
     @Singleton
     @Provides
     @MediumDateTime
-    fun provideDateTimeFormatter(application: TiviApplication): DateTimeFormatter {
-        val dateF = AndroidDateFormat.getMediumDateFormat(application) as SimpleDateFormat
-        val timeF = AndroidDateFormat.getTimeFormat(application) as SimpleDateFormat
-
-        @Suppress("DEPRECATION")
-        return DateTimeFormatter.ofPattern("${dateF.toPattern()} ${timeF.toPattern()}")
-            .withLocale(application.resources.configuration.locale)
-            .withZone(ZoneId.systemDefault())
+    fun provideDateTimeFormatter(
+        @ApplicationContext context: Context
+    ): DateTimeFormatter {
+        return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withLocale(context)
     }
 
     @Singleton
     @Provides
     @ShortDate
-    fun provideShortDateFormatter(application: TiviApplication): DateTimeFormatter {
-        @Suppress("DEPRECATION")
-        return (AndroidDateFormat.getDateFormat(application) as SimpleDateFormat)
-            .toThreeTenDateTimeFormatter()
-            .withLocale(application.resources.configuration.locale)
-            .withZone(ZoneId.systemDefault())
+    fun provideShortDateFormatter(
+        @ApplicationContext context: Context
+    ): DateTimeFormatter {
+        return DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(context)
     }
 
     @Singleton
     @Provides
     @ShortTime
-    fun provideShortTimeFormatter(application: TiviApplication): DateTimeFormatter {
-        @Suppress("DEPRECATION")
-        return (AndroidDateFormat.getTimeFormat(application) as SimpleDateFormat)
-            .toThreeTenDateTimeFormatter()
-    }
-
-    @Provides
-    @ProcessLifetime
-    fun provideLongLifetimeScope(): CoroutineScope {
-        return ProcessLifecycleOwner.get().lifecycle.coroutineScope
+    fun provideShortTimeFormatter(
+        @ApplicationContext context: Context
+    ): DateTimeFormatter {
+        return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(context)
     }
 
     @Provides
@@ -157,4 +121,8 @@ class AppModule {
         R.id.navigation_discover,
         R.id.navigation_search
     ).build()
+
+    @Provides
+    @Singleton
+    fun provideFirebaseCrashlytics(): FirebaseCrashlytics = FirebaseCrashlytics.getInstance()
 }

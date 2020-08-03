@@ -23,31 +23,30 @@ import app.tivi.data.repositories.shows.ShowStore
 import app.tivi.data.repositories.watchedshows.WatchedShowsLastRequestStore
 import app.tivi.data.repositories.watchedshows.WatchedShowsStore
 import app.tivi.domain.Interactor
-import app.tivi.extensions.parallelForEach
-import app.tivi.inject.ProcessLifetime
 import app.tivi.util.AppCoroutineDispatchers
-import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
 import org.threeten.bp.Duration
+import javax.inject.Inject
 
 class UpdateWatchedShows @Inject constructor(
     private val watchedShowsStore: WatchedShowsStore,
     private val showsStore: ShowStore,
     private val showImagesStore: ShowImagesStore,
     private val lastRequestStore: WatchedShowsLastRequestStore,
-    dispatchers: AppCoroutineDispatchers,
-    @ProcessLifetime val processScope: CoroutineScope
+    private val dispatchers: AppCoroutineDispatchers
 ) : Interactor<UpdateWatchedShows.Params>() {
-    override val scope: CoroutineScope = processScope + dispatchers.io
-
     override suspend fun doWork(params: Params) {
-        watchedShowsStore.fetchCollection(Unit, forceFresh = params.forceRefresh) {
-            // Refresh if our local data is over 12 hours old
-            lastRequestStore.isRequestExpired(Duration.ofHours(12))
-        }.parallelForEach {
-            showsStore.fetch(it.showId)
-            showImagesStore.fetchCollection(it.showId)
+        withContext(dispatchers.io) {
+            watchedShowsStore.fetchCollection(Unit, forceFresh = params.forceRefresh) {
+                // Refresh if our local data is over 12 hours old
+                lastRequestStore.isRequestExpired(Duration.ofHours(12))
+            }.asFlow().collect {
+                showsStore.fetch(it.showId)
+                showImagesStore.fetchCollection(it.showId)
+            }
         }
     }
 

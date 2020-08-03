@@ -28,10 +28,9 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://maven.fabric.io/public' }
-        maven { url 'https://dl.bintray.com/kotlin/kotlin-eap' }
-
         jcenter()
+
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
     }
 
     dependencies {
@@ -40,19 +39,20 @@ buildscript {
         classpath Libs.Kotlin.gradlePlugin
         classpath Libs.Kotlin.extensions
 
-        classpath Libs.dexcountGradlePlugin
-        classpath Libs.playPublisherPlugin
+        classpath Libs.gradlePlayPublisher
 
         classpath Libs.Google.gmsGoogleServices
-        classpath Libs.Google.fabricPlugin
+        classpath Libs.Google.crashlyticsGradle
         classpath Libs.Google.openSourceLicensesPlugin
 
         classpath Libs.AndroidX.Navigation.safeArgs
+
+        classpath Libs.Hilt.gradlePlugin
     }
 }
 
 plugins {
-    id 'com.diffplug.gradle.spotless' version '3.27.1'
+    id 'com.diffplug.gradle.spotless' version '4.3.0'
     id 'com.github.ben-manes.versions' version '0.28.0'
 }
 
@@ -61,33 +61,61 @@ allprojects {
         google()
         mavenCentral()
         jcenter()
-        maven { url 'https://jitpack.io' }
-        maven { url 'https://dl.bintray.com/kotlin/kotlin-eap' }
+
+        if (Libs.AndroidX.Compose.version.endsWith("SNAPSHOT")) {
+            maven {
+                url "https://androidx.dev/snapshots/builds/${Libs.AndroidX.Compose.snapshot}/artifacts/ui/repository/"
+            }
+        }
+
         maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
-        mavenLocal()
+
+        maven { url 'https://jitpack.io' }
     }
 }
 
 subprojects {
-    apply plugin: 'com.diffplug.gradle.spotless'
-    spotless {
-        kotlin {
-            target "**/*.kt"
-            ktlint(Versions.ktlint)
-            licenseHeaderFile project.rootProject.file('spotless/copyright.kt')
+    configurations.configureEach {
+        resolutionStrategy {
+            eachDependency { DependencyResolveDetails details ->
+                if (details.requested.group == 'org.jetbrains.kotlin') {
+                    // kotlin-stdlib-jre7 no longer exists in 1.4, so we force the
+                    // kotlin-stdlib module instead
+                    if (details.requested.module.name == 'kotlin-stdlib-jre7') {
+                        details.useTarget Libs.Kotlin.stdlib
+                    }
+                }
+            }
         }
     }
 
-    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {
+    apply plugin: 'com.diffplug.gradle.spotless'
+    spotless {
+        kotlin {
+            target '**/*.kt'
+            targetExclude("$buildDir/**/*.kt")
+            targetExclude('bin/**/*.kt')
+
+            ktlint(Versions.ktlint)
+            licenseHeaderFile rootProject.file('spotless/copyright.kt')
+        }
+    }
+
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
         kotlinOptions {
             // Treat all Kotlin warnings as errors
             allWarningsAsErrors = true
 
             // Enable experimental coroutines APIs, including Flow
-            freeCompilerArgs += "-Xuse-experimental=kotlinx.coroutines.ExperimentalCoroutinesApi"
-            freeCompilerArgs += "-Xuse-experimental=kotlinx.coroutines.FlowPreview"
-            freeCompilerArgs += "-Xuse-experimental=kotlinx.coroutines.FlowPreview"
-            freeCompilerArgs += "-Xuse-experimental=kotlin.Experimental"
+            freeCompilerArgs += "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
+            freeCompilerArgs += "-Xopt-in=kotlinx.coroutines.FlowPreview"
+            freeCompilerArgs += "-Xopt-in=kotlin.Experimental"
+
+            // Since we're using a pre-release version of the Kotlin compiler, we need
+            // to disable it's pre-release check
+            freeCompilerArgs += "-Xskip-prerelease-check"
+
+            freeCompilerArgs += "-Xallow-jvm-ir-dependencies"
 
             // Set JVM target to 1.8
             jvmTarget = "1.8"

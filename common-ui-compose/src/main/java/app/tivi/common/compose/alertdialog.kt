@@ -16,11 +16,11 @@
 
 package app.tivi.common.compose
 
-import androidx.compose.Composable
-import androidx.ui.core.Text
-import androidx.ui.material.AlertDialog
-import androidx.ui.material.OutlinedButton
-import androidx.ui.material.TextButton
+import androidx.compose.foundation.Text
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.TextButton
+import androidx.compose.runtime.Composable
 
 @Composable
 fun TiviAlertDialog(

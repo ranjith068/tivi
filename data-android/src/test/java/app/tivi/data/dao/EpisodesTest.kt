@@ -17,9 +17,8 @@
 package app.tivi.data.dao
 
 import android.database.sqlite.SQLiteConstraintException
-import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import app.tivi.data.DaggerTestComponent
-import app.tivi.data.TestDataSourceModule
+import app.tivi.data.DatabaseModuleBinds
+import app.tivi.data.DatabaseTest
 import app.tivi.data.TiviDatabase
 import app.tivi.data.daos.EpisodesDao
 import app.tivi.data.daos.SeasonsDao
@@ -30,38 +29,29 @@ import app.tivi.utils.s1e1
 import app.tivi.utils.s1e2
 import app.tivi.utils.s1e3
 import app.tivi.utils.showId
-import javax.inject.Inject
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.TestCoroutineScope
 import kotlinx.coroutines.test.runBlockingTest
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.CoreMatchers.nullValue
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.After
 import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import javax.inject.Inject
 
-@RunWith(RobolectricTestRunner::class)
-class EpisodesTest {
-    @get:Rule
-    val instantTaskExecutorRule = InstantTaskExecutorRule()
-
-    private val testScope = TestCoroutineScope()
-
+@UninstallModules(DatabaseModuleBinds::class)
+@HiltAndroidTest
+class EpisodesTest : DatabaseTest() {
     @Inject lateinit var database: TiviDatabase
     @Inject lateinit var episodeDao: EpisodesDao
     @Inject lateinit var seasonsDao: SeasonsDao
 
     @Before
     fun setup() {
-        DaggerTestComponent.builder()
-            .testDataSourceModule(TestDataSourceModule(storeScope = testScope))
-            .build()
-            .inject(this)
+        hiltRule.inject()
 
         runBlocking {
             // We'll assume that there's a show and season in the db
@@ -109,17 +99,29 @@ class EpisodesTest {
     fun nextAiredEpisodeAfter() = testScope.runBlockingTest {
         episodeDao.insertAll(s1_episodes)
 
-        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 0, 0)
-            .first()?.episode, `is`(s1e1))
+        assertThat(
+            episodeDao.observeNextEpisodeForShowAfter(showId, 0, 0)
+                .first()?.episode,
+            `is`(s1e1)
+        )
 
-        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 1, 0)
-            .first()?.episode, `is`(s1e2))
+        assertThat(
+            episodeDao.observeNextEpisodeForShowAfter(showId, 1, 0)
+                .first()?.episode,
+            `is`(s1e2)
+        )
 
-        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 1, 1)
-            .first()?.episode, `is`(s1e3))
+        assertThat(
+            episodeDao.observeNextEpisodeForShowAfter(showId, 1, 1)
+                .first()?.episode,
+            `is`(s1e3)
+        )
 
-        assertThat(episodeDao.observeNextEpisodeForShowAfter(showId, 1, 2)
-            .first()?.episode, nullValue())
+        assertThat(
+            episodeDao.observeNextEpisodeForShowAfter(showId, 1, 2)
+                .first()?.episode,
+            nullValue()
+        )
     }
 
     @After

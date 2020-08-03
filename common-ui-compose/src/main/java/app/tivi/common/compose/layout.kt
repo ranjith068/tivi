@@ -16,57 +16,88 @@
 
 package app.tivi.common.compose
 
-import androidx.animation.AnimatedFloat
-import androidx.compose.Composable
-import androidx.ui.core.Layout
-import androidx.ui.core.LayoutCoordinates
-import androidx.ui.core.RepaintBoundary
-import androidx.ui.unit.IntPx
-import androidx.ui.unit.PxBounds
-import androidx.ui.unit.PxPosition
-import androidx.ui.unit.min
-import androidx.ui.unit.px
-import androidx.ui.unit.toPxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.state
+import androidx.compose.ui.LayoutModifier
+import androidx.compose.ui.Measurable
+import androidx.compose.ui.MeasureScope
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.OnPositionedModifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.PxBounds
+import androidx.compose.ui.unit.toSize
+import kotlin.math.roundToInt
 
-/**
- * This is copied from `ui/ui-material/src/main/java/androidx/ui/material/Drawer.kt`
- */
-@Composable
-fun WithOffset(
-    xOffset: AnimatedFloat? = null,
-    yOffset: AnimatedFloat? = null,
-    child: @Composable() () -> Unit
-) {
-    Layout(children = {
-        RepaintBoundary(children = child)
-    }) { measurables, constraints ->
-        if (measurables.size > 1) {
-            throw IllegalStateException("Only one child is allowed")
-        }
-        val childMeasurable = measurables.firstOrNull()
-        val placeable = childMeasurable?.measure(constraints)
-        val width: IntPx
-        val height: IntPx
-        if (placeable == null) {
-            width = constraints.minWidth
-            height = constraints.minHeight
-        } else {
-            width = min(placeable.width, constraints.maxWidth)
-            height = min(placeable.height, constraints.maxHeight)
-        }
-        layout(width, height) {
-            val offX = xOffset?.value?.px ?: 0.px
-            val offY = yOffset?.value?.px ?: 0.px
-            placeable?.place(offX, offY)
+inline val LayoutCoordinates.positionInParent: Offset
+    get() = parentCoordinates?.childToLocal(this, Offset.Zero) ?: Offset.Zero
+
+inline val LayoutCoordinates.boundsInParent: PxBounds
+    get() = PxBounds(positionInParent, size.toSize())
+
+fun Modifier.onSizeChanged(
+    onChange: (IntSize) -> Unit
+) = composed {
+    var lastSize by state<IntSize?> { null }
+
+    object : OnPositionedModifier {
+        override fun onPositioned(coordinates: LayoutCoordinates) {
+            if (coordinates.size != lastSize) {
+                lastSize = coordinates.size
+                onChange(coordinates.size)
+            }
         }
     }
 }
 
-inline val PxBounds.center: PxPosition
-    get() = PxPosition((left + right) / 2, (top + bottom) / 2)
+fun Modifier.onPositionInParentChanged(
+    onChange: (LayoutCoordinates) -> Unit
+) = composed {
+    var lastPosition by state<Offset?> { null }
 
-inline val LayoutCoordinates.positionInParent: PxPosition
-    get() = parentCoordinates?.childToLocal(this, PxPosition.Origin) ?: PxPosition.Origin
+    object : OnPositionedModifier {
+        override fun onPositioned(coordinates: LayoutCoordinates) {
+            if (coordinates.positionInParent != lastPosition) {
+                lastPosition = coordinates.positionInParent
+                onChange(coordinates)
+            }
+        }
+    }
+}
 
-inline val LayoutCoordinates.boundsInParent: PxBounds
-    get() = PxBounds(positionInParent, size.toPxSize())
+fun Modifier.onPositionInRootChanged(
+    onChange: (LayoutCoordinates) -> Unit
+) = composed {
+    var lastPosition by state<Offset?> { null }
+
+    object : OnPositionedModifier {
+        override fun onPositioned(coordinates: LayoutCoordinates) {
+            if (coordinates.positionInRoot != lastPosition) {
+                lastPosition = coordinates.positionInRoot
+                onChange(coordinates)
+            }
+        }
+    }
+}
+
+fun Modifier.offset(getOffset: (IntSize) -> Offset) = then(OffsetModifier(getOffset))
+
+private data class OffsetModifier(
+    private val getOffset: (IntSize) -> Offset
+) : LayoutModifier {
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints
+    ): MeasureScope.MeasureResult {
+        val placeable = measurable.measure(constraints)
+        return layout(placeable.width, placeable.height) {
+            val offset = getOffset(IntSize(placeable.width, placeable.height))
+            placeable.place(offset.x.roundToInt(), offset.y.roundToInt())
+        }
+    }
+}

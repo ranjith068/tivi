@@ -18,6 +18,7 @@ package app.tivi.data.daos
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import app.tivi.data.entities.TiviShow
 import app.tivi.data.repositories.shows.mergeShows
 import app.tivi.data.resultentities.ShowDetailed
@@ -37,14 +38,21 @@ abstract class TiviShowDao : EntityDao<TiviShow>() {
     @Query("SELECT * FROM shows WHERE id = :id")
     abstract fun getShowWithIdFlow(id: Long): Flow<TiviShow>
 
+    @Transaction
     @Query("SELECT * FROM shows WHERE id = :id")
     abstract suspend fun getShowWithIdDetailed(id: Long): ShowDetailed?
 
+    @Transaction
     @Query("SELECT * FROM shows WHERE id = :id")
     abstract fun getShowDetailedWithIdFlow(id: Long): Flow<ShowDetailed>
 
     @Query("SELECT * FROM shows WHERE id = :id")
     abstract suspend fun getShowWithId(id: Long): TiviShow?
+
+    suspend fun getShowWithIdOrThrow(id: Long): TiviShow {
+        return getShowWithId(id)
+            ?: throw IllegalArgumentException("No show with id $id in database")
+    }
 
     @Query("SELECT trakt_id FROM shows WHERE id = :id")
     abstract suspend fun getTraktIdForShowId(id: Long): Int?
@@ -73,8 +81,8 @@ abstract class TiviShowDao : EntityDao<TiviShow>() {
                 // Great, the entities are matching
                 idForTraktId
             } else {
-                val showForTmdbId = getShowWithId(idForTmdbId)!!
-                val showForTraktId = getShowWithId(idForTraktId)!!
+                val showForTmdbId = getShowWithIdOrThrow(idForTmdbId)
+                val showForTraktId = getShowWithIdOrThrow(idForTraktId)
                 deleteEntity(showForTmdbId)
                 return insertOrUpdate(mergeShows(showForTraktId, showForTraktId, showForTmdbId))
             }

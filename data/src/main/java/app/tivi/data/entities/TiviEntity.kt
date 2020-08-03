@@ -42,12 +42,16 @@ enum class ImageType(val storageKey: String) {
     LOGO("logo"),
 }
 
-fun <T : TmdbImageEntity> Collection<T>.findHighestRatedPoster(): T? {
+internal fun <T : TmdbImageEntity> Collection<T>.findHighestRatedPoster(): T? {
+    if (size <= 1) return firstOrNull()
+    @Suppress("DEPRECATION") // Can't use maxByOrNull until we're API version 1.4
     return filter { it.type == ImageType.POSTER }
         .maxBy { it.rating + (if (it.isPrimary) 10f else 0f) }
 }
 
-fun <T : TmdbImageEntity> Collection<T>.findHighestRatedBackdrop(): T? {
+internal fun <T : TmdbImageEntity> Collection<T>.findHighestRatedBackdrop(): T? {
+    if (size <= 1) return firstOrNull()
+    @Suppress("DEPRECATION") // Can't use maxByOrNull until we're API version 1.4
     return filter { it.type == ImageType.BACKDROP }
         .maxBy { it.rating + (if (it.isPrimary) 10f else 0f) }
 }

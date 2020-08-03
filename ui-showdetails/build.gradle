@@ -27,16 +27,20 @@ kapt {
     useBuildCache = true
 }
 
-apply plugin: 'kotlin-android-extensions'
-androidExtensions {
-    experimental = true
-}
+apply plugin: 'dagger.hilt.android.plugin'
 
 android {
     compileSdkVersion buildConfig.compileSdk
 
     defaultConfig {
         minSdkVersion buildConfig.minSdk
+
+        // Needed because we're using AssistedInject to inject our ViewModel
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments["dagger.hilt.disableModulesHaveInstallInCheck"] = "true"
+            }
+        }
     }
 
     compileOptions {
@@ -45,29 +49,27 @@ android {
     }
 
     buildFeatures {
-        dataBinding true
+        compose true
+    }
+
+    composeOptions {
+        kotlinCompilerVersion Libs.Kotlin.version
+        kotlinCompilerExtensionVersion Libs.AndroidX.Compose.version
     }
 }
 
 dependencies {
     implementation project(':base')
     implementation project(':base-android')
+    implementation project(':data')
     implementation project(':domain')
     implementation project(':common-ui-view')
-    implementation project(':common-epoxy')
-    implementation project(':common-layouts')
-    implementation project(':common-imageloading')
-    implementation project(':common-databinding')
-    implementation project(':ui-episodedetails')
+    implementation project(':common-ui-compose')
 
-    implementation Libs.AndroidX.Lifecycle.extensions
-    implementation Libs.AndroidX.Lifecycle.viewmodelKtx
-
-    implementation Libs.AndroidX.Paging.runtime
+    implementation Libs.AndroidX.Lifecycle.livedata
+    implementation Libs.AndroidX.Lifecycle.viewmodel
 
     implementation Libs.AndroidX.appcompat
-    implementation Libs.AndroidX.recyclerview
-    implementation Libs.AndroidX.constraintlayout
     implementation Libs.AndroidX.coreKtx
     implementation Libs.AndroidX.emoji
     implementation Libs.AndroidX.Fragment.fragment
@@ -76,19 +78,27 @@ dependencies {
 
     implementation Libs.Insetter.ktx
 
-    implementation Libs.inboxRecyclerView
-    implementation Libs.flexbox
+    implementation Libs.AndroidX.Compose.runtime
+    implementation Libs.AndroidX.Compose.foundation
+    implementation Libs.AndroidX.Compose.ui
+    implementation Libs.AndroidX.Compose.layout
+    implementation Libs.AndroidX.Compose.material
+    implementation Libs.AndroidX.Compose.animation
+    implementation Libs.AndroidX.Compose.tooling
+    implementation Libs.AndroidX.Compose.livedata
+    implementation Libs.AndroidX.Compose.iconsExtended
+
+    implementation Libs.Accompanist.mdcTheme
+    implementation Libs.Accompanist.coil
 
     implementation Libs.Google.material
 
-    implementation Libs.Dagger.androidSupport
-    kapt Libs.Dagger.compiler
-    kapt Libs.Dagger.androidProcessor
+    implementation Libs.Hilt.library
+    kapt Libs.Hilt.compiler
 
     compileOnly Libs.AssistedInject.annotationDagger2
     kapt Libs.AssistedInject.processorDagger2
 
-    implementation Libs.mvRx
-
-    kapt Libs.Epoxy.processor
+    implementation Libs.AndroidX.Hilt.viewmodel
+    kapt Libs.AndroidX.Hilt.compiler
 }

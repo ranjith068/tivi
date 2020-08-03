@@ -17,37 +17,43 @@
 package app.tivi.data.resultentities
 
 import androidx.room.Embedded
+import androidx.room.Ignore
 import androidx.room.Relation
 import app.tivi.data.entities.Episode
 import app.tivi.data.entities.EpisodeWatchEntry
 import app.tivi.data.entities.PendingAction
-import java.util.Objects
 import org.threeten.bp.OffsetDateTime
+import java.util.Objects
 
 class EpisodeWithWatches {
     @Embedded
-    var episode: Episode? = null
+    lateinit var episode: Episode
 
     @Relation(parentColumn = "id", entityColumn = "episode_id")
-    var watches: List<EpisodeWatchEntry> = emptyList()
+    lateinit var watches: List<EpisodeWatchEntry>
 
-    fun hasWatches() = watches.isNotEmpty()
+    @delegate:Ignore
+    val hasWatches by lazy { watches.isNotEmpty() }
 
-    fun isWatched() = watches.any {
-        it.pendingAction != PendingAction.DELETE
+    @delegate:Ignore
+    val isWatched by lazy {
+        watches.any { it.pendingAction != PendingAction.DELETE }
     }
 
-    fun hasPending() = watches.any {
-        it.pendingAction != PendingAction.NOTHING
+    @delegate:Ignore
+    val hasPending by lazy {
+        watches.any { it.pendingAction != PendingAction.NOTHING }
     }
 
-    fun onlyPendingDeletes() = watches.all {
-        it.pendingAction == PendingAction.DELETE
+    @delegate:Ignore
+    val onlyPendingDeletes by lazy {
+        watches.all { it.pendingAction == PendingAction.DELETE }
     }
 
-    fun hasAired(): Boolean {
-        val aired = episode?.firstAired
-        return aired != null && aired.isBefore(OffsetDateTime.now())
+    @delegate:Ignore
+    val hasAired by lazy {
+        val aired = episode.firstAired
+        aired != null && aired.isBefore(OffsetDateTime.now())
     }
 
     override fun equals(other: Any?): Boolean = when {

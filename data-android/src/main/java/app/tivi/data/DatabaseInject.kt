@@ -22,20 +22,19 @@ import androidx.room.Room
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.components.ApplicationComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Singleton
 
-@Module(includes = [
-    RoomDatabaseModule::class,
-    DatabaseModuleBinds::class,
-    DatabaseDaoModule::class
-])
-class DatabaseModule
-
+@InstallIn(ApplicationComponent::class)
 @Module
-class RoomDatabaseModule {
+object RoomDatabaseModule {
     @Singleton
     @Provides
-    fun provideDatabase(context: Context): TiviRoomDatabase {
+    fun provideDatabase(
+        @ApplicationContext context: Context
+    ): TiviRoomDatabase {
         val builder = Room.databaseBuilder(context, TiviRoomDatabase::class.java, "shows.db")
             .addMigrations(*TiviRoomDatabase_Migrations.build())
             .fallbackToDestructiveMigration()
@@ -46,8 +45,9 @@ class RoomDatabaseModule {
     }
 }
 
+@InstallIn(ApplicationComponent::class)
 @Module
-class DatabaseDaoModule {
+object DatabaseDaoModule {
     @Provides
     fun provideTiviShowDao(db: TiviDatabase) = db.showDao()
 
@@ -91,10 +91,11 @@ class DatabaseDaoModule {
     fun provideRecommendedShowsDao(db: TiviDatabase) = db.recommendedShowsDao()
 }
 
+@InstallIn(ApplicationComponent::class)
 @Module
 abstract class DatabaseModuleBinds {
     @Binds
-    abstract fun bindTiviDatabase(context: TiviRoomDatabase): TiviDatabase
+    abstract fun bindTiviDatabase(db: TiviRoomDatabase): TiviDatabase
 
     @Singleton
     @Binds

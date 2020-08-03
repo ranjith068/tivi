@@ -16,37 +16,31 @@
 
 package app.tivi.showdetails.details
 
+import app.tivi.api.UiError
 import app.tivi.data.entities.ShowTmdbImage
 import app.tivi.data.entities.TiviShow
 import app.tivi.data.resultentities.EpisodeWithSeason
 import app.tivi.data.resultentities.RelatedShowEntryWithShow
 import app.tivi.data.resultentities.SeasonWithEpisodesAndWatches
 import app.tivi.data.views.FollowedShowsWatchStats
-import com.airbnb.mvrx.Async
-import com.airbnb.mvrx.MvRxState
-import com.airbnb.mvrx.Uninitialized
 
 data class ShowDetailsViewState(
-    val showId: Long = 0,
+    val showId: Long,
     val isFollowed: Boolean = false,
     val show: TiviShow = TiviShow.EMPTY_SHOW,
     val posterImage: ShowTmdbImage? = null,
     val backdropImage: ShowTmdbImage? = null,
-    val relatedShows: Async<List<RelatedShowEntryWithShow>> = Uninitialized,
-    val nextEpisodeToWatch: Async<EpisodeWithSeason?> = Uninitialized,
-    val viewStats: Async<FollowedShowsWatchStats> = Uninitialized,
-    val seasons: Async<List<SeasonWithEpisodesAndWatches>> = Uninitialized,
+    val relatedShows: List<RelatedShowEntryWithShow> = emptyList(),
+    val nextEpisodeToWatch: EpisodeWithSeason? = null,
+    val watchStats: FollowedShowsWatchStats? = null,
+    val seasons: List<SeasonWithEpisodesAndWatches> = emptyList(),
     val expandedSeasonIds: Set<Long> = emptySet(),
-    val focusedSeason: FocusSeasonUiEffect? = null,
-    val openEpisodeUiEffect: OpenEpisodeUiEffect? = null,
-    val refreshing: Boolean = false
-) : MvRxState
+    val pendingUiEffects: List<UiEffect> = emptyList(), // TODO this should really be a queue
+    val refreshing: Boolean = false,
+    val refreshError: UiError? = null
+)
 
-data class FocusSeasonUiEffect(val seasonId: Long)
-
-sealed class OpenEpisodeUiEffect
-data class PendingOpenEpisodeUiEffect(val episodeId: Long) : OpenEpisodeUiEffect()
-data class ExecutableOpenEpisodeUiEffect(
-    val episodeId: Long,
-    val seasonId: Long
-) : OpenEpisodeUiEffect()
+sealed class UiEffect
+data class OpenEpisodeUiEffect(val episodeId: Long, val seasonId: Long) : UiEffect()
+data class OpenShowUiEffect(val showId: Long) : UiEffect()
+data class FocusSeasonUiEffect(val seasonId: Long) : UiEffect()

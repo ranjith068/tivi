@@ -21,7 +21,6 @@ import app.tivi.data.entities.Result
 import app.tivi.data.entities.Success
 import app.tivi.data.entities.TiviShow
 import app.tivi.data.mappers.TraktShowToTiviShow
-import app.tivi.data.mappers.toLambda
 import app.tivi.extensions.toResult
 import com.uwetrottmann.trakt5.enums.Extended
 import com.uwetrottmann.trakt5.enums.IdType
@@ -31,7 +30,7 @@ import com.uwetrottmann.trakt5.services.Shows
 import javax.inject.Inject
 import javax.inject.Provider
 
-internal class TraktShowDataSource @Inject constructor(
+class TraktShowDataSource @Inject constructor(
     private val showService: Provider<Shows>,
     private val searchService: Provider<Search>,
     private val mapper: TraktShowToTiviShow
@@ -41,8 +40,10 @@ internal class TraktShowDataSource @Inject constructor(
 
         if (traktId == null && show.tmdbId != null) {
             // We need to fetch the search for the trakt id
-            val response = searchService.get().idLookup(IdType.TMDB, show.tmdbId.toString(),
-                Type.SHOW, Extended.NOSEASONS, 1, 1)
+            val response = searchService.get().idLookup(
+                IdType.TMDB, show.tmdbId.toString(),
+                Type.SHOW, Extended.NOSEASONS, 1, 1
+            )
                 .execute()
                 .toResult { it[0].show?.ids?.trakt }
             if (response is Success) {
@@ -53,10 +54,12 @@ internal class TraktShowDataSource @Inject constructor(
         }
 
         if (traktId == null) {
-            val response = searchService.get().textQueryShow(show.title, null /* years */, null /* genres */,
+            val response = searchService.get().textQueryShow(
+                show.title, null /* years */, null /* genres */,
                 null /* lang */, show.country /* countries */, null /* runtime */, null /* ratings */,
                 null /* certs */, show.network /* networks */, null /* status */,
-                Extended.NOSEASONS, 1, 1)
+                Extended.NOSEASONS, 1, 1
+            )
                 .execute()
                 .toResult { it[0].show?.ids?.trakt }
             if (response is Success) {
@@ -69,7 +72,7 @@ internal class TraktShowDataSource @Inject constructor(
         return if (traktId != null) {
             showService.get().summary(traktId.toString(), Extended.FULL)
                 .execute()
-                .toResult(mapper.toLambda())
+                .toResult(mapper::map)
         } else {
             ErrorResult(IllegalArgumentException("Trakt ID for show does not exist: [$show]"))
         }

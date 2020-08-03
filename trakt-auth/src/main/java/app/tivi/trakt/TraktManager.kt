@@ -18,54 +18,38 @@ package app.tivi.trakt
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import app.tivi.AppNavigator
 import app.tivi.actions.ShowTasks
-import app.tivi.inject.ProcessLifetime
 import app.tivi.util.AppCoroutineDispatchers
-import app.tivi.util.Logger
 import com.uwetrottmann.trakt5.TraktV2
 import dagger.Lazy
-import javax.inject.Inject
-import javax.inject.Named
-import javax.inject.Provider
-import javax.inject.Singleton
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.ConflatedBroadcastChannel
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.openid.appauth.AuthState
-import net.openid.appauth.AuthorizationException
-import net.openid.appauth.AuthorizationRequest
-import net.openid.appauth.AuthorizationResponse
-import net.openid.appauth.AuthorizationService
-import net.openid.appauth.ClientAuthentication
-import net.openid.appauth.TokenResponse
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 
 @Singleton
 class TraktManager @Inject constructor(
     private val dispatchers: AppCoroutineDispatchers,
-    @Named("app") private val appNavigator: AppNavigator,
-    private val requestProvider: Provider<AuthorizationRequest>,
-    private val clientAuth: Lazy<ClientAuthentication>,
     @Named("auth") private val authPrefs: SharedPreferences,
     private val showTasks: ShowTasks,
-    private val logger: Logger,
-    private val traktClient: Lazy<TraktV2>,
-    @ProcessLifetime val processScope: CoroutineScope
+    private val traktClient: Lazy<TraktV2>
 ) {
-    private val authState = ConflatedBroadcastChannel<AuthState>()
+    private val authState = MutableStateFlow(EmptyAuthState)
 
-    private val _state = ConflatedBroadcastChannel(TraktAuthState.LOGGED_OUT)
+    private val _state = MutableStateFlow(TraktAuthState.LOGGED_OUT)
     val state: Flow<TraktAuthState>
-        get() = _state.asFlow()
+        get() = _state
 
     init {
         // Observer which updates local state
-        processScope.launch {
-            authState.asFlow().collect { authState ->
+        GlobalScope.launch(dispatchers.io) {
+            authState.collect { authState ->
                 updateAuthState(authState)
 
                 traktClient.get().apply {
@@ -76,48 +60,37 @@ class TraktManager @Inject constructor(
         }
 
         // Read the auth state from prefs
-        processScope.launch {
-            val state = withContext(dispatchers.io) {
-                readAuthState()
-            }
-            authState.send(state)
+        GlobalScope.launch(dispatchers.main) {
+            val state = withContext(dispatchers.io) { readAuthState() }
+            authState.value = state
+        }
+
+        // Read the auth state from prefs
+        GlobalScope.launch(dispatchers.main) {
+            val state = withContext(dispatchers.io) { readAuthState() }
+            authState.value = state
         }
     }
 
-    private suspend fun updateAuthState(authState: AuthState) {
+    private fun updateAuthState(authState: AuthState) {
         if (authState.isAuthorized) {
-            _state.send(TraktAuthState.LOGGED_IN)
+            _state.value = TraktAuthState.LOGGED_IN
         } else {
-            _state.send(TraktAuthState.LOGGED_OUT)
+            _state.value = TraktAuthState.LOGGED_OUT
         }
     }
 
-    fun startAuth(requestCode: Int, authService: AuthorizationService) {
-        authService.performAuthorizationRequest(
-            requestProvider.get(),
-            appNavigator.provideAuthHandleResponseIntent(requestCode)
-        )
+    fun clearAuth() {
+        authState.value = EmptyAuthState
+        clearPersistedAuthState()
     }
 
-    fun onAuthResponse(authService: AuthorizationService, response: AuthorizationResponse) {
-        authService.performTokenRequest(
-            response.createTokenExchangeRequest(),
-            clientAuth.get(),
-            ::onTokenExchangeResponse
-        )
-    }
-
-    fun onAuthException(exception: AuthorizationException) {
-        logger.d(exception, "AuthException")
-    }
-
-    private fun onTokenExchangeResponse(response: TokenResponse?, ex: AuthorizationException?) {
-        val newState = AuthState().apply { update(response, ex) }
-        processScope.launch(dispatchers.main) {
+    fun onNewAuthState(newState: AuthState) {
+        GlobalScope.launch(dispatchers.main) {
             // Update our local state
-            authState.send(newState)
+            authState.value = newState
         }
-        processScope.launch(dispatchers.io) {
+        GlobalScope.launch(dispatchers.io) {
             // Persist auth state
             persistAuthState(newState)
         }
@@ -126,7 +99,7 @@ class TraktManager @Inject constructor(
     }
 
     private fun readAuthState(): AuthState {
-        val stateJson = authPrefs.getString("stateJson", null)
+        val stateJson = authPrefs.getString(PreferenceAuthKey, null)
         return when {
             stateJson != null -> AuthState.jsonDeserialize(stateJson)
             else -> AuthState()
@@ -134,8 +107,19 @@ class TraktManager @Inject constructor(
     }
 
     private fun persistAuthState(state: AuthState) {
-        authPrefs.edit {
-            putString("stateJson", state.jsonSerializeString())
+        authPrefs.edit(commit = true) {
+            putString(PreferenceAuthKey, state.jsonSerializeString())
         }
+    }
+
+    private fun clearPersistedAuthState() {
+        authPrefs.edit(commit = true) {
+            remove(PreferenceAuthKey)
+        }
+    }
+
+    companion object {
+        private val EmptyAuthState = AuthState()
+        private const val PreferenceAuthKey = "stateJson"
     }
 }

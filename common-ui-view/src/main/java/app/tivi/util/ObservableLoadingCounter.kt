@@ -20,37 +20,32 @@ import app.tivi.base.InvokeError
 import app.tivi.base.InvokeStarted
 import app.tivi.base.InvokeStatus
 import app.tivi.base.InvokeSuccess
-import app.tivi.base.InvokeTimeout
-import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.channels.ConflatedBroadcastChannel
-import kotlinx.coroutines.channels.sendBlocking
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import java.util.concurrent.atomic.AtomicInteger
 
 class ObservableLoadingCounter {
     private val count = AtomicInteger()
-    private val loadingState = ConflatedBroadcastChannel(count.get())
+    private val loadingState = MutableStateFlow(count.get())
 
     val observable: Flow<Boolean>
-        get() = loadingState.asFlow().map { it > 0 }
+        get() = loadingState.map { it > 0 }.distinctUntilChanged()
 
     fun addLoader() {
-        loadingState.sendBlocking(count.incrementAndGet())
+        loadingState.value = count.incrementAndGet()
     }
 
     fun removeLoader() {
-        loadingState.sendBlocking(count.decrementAndGet())
+        loadingState.value = count.decrementAndGet()
     }
 }
 
-suspend fun ObservableLoadingCounter.collectFrom(statuses: Flow<InvokeStatus>) {
-    statuses.collect {
-        if (it == InvokeStarted) {
-            addLoader()
-        } else if (it == InvokeSuccess || it == InvokeTimeout || it is InvokeError) {
-            removeLoader()
-        }
+suspend fun Flow<InvokeStatus>.collectInto(counter: ObservableLoadingCounter) = collect {
+    when (it) {
+        InvokeStarted -> counter.addLoader()
+        InvokeSuccess, is InvokeError -> counter.removeLoader()
     }
 }

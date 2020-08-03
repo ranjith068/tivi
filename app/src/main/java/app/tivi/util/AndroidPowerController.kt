@@ -19,20 +19,22 @@ package app.tivi.util
 import android.content.Context
 import android.content.IntentFilter
 import android.net.ConnectivityManager
+import android.os.Build
 import android.os.PowerManager
+import androidx.annotation.RequiresApi
 import androidx.core.content.getSystemService
-import androidx.core.net.ConnectivityManagerCompat
 import app.tivi.settings.TiviPreferences
-import javax.inject.Inject
-import javax.inject.Singleton
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @Singleton
 internal class AndroidPowerController @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     private val preferences: TiviPreferences
 ) : PowerController {
     private val powerManager: PowerManager = context.getSystemService()!!
@@ -49,17 +51,22 @@ internal class AndroidPowerController @Inject constructor(
         }
     }
 
-    override fun shouldSaveData(): SaveData {
-        if (preferences.useLessData) {
-            return SaveData.Enabled(SaveDataReason.PREFERENCE)
+    override fun shouldSaveData(): SaveData = when {
+        preferences.useLessData -> {
+            SaveData.Enabled(SaveDataReason.PREFERENCE)
         }
-        if (powerManager.isPowerSaveMode) {
-            return SaveData.Enabled(SaveDataReason.SYSTEM_POWER_SAVER)
+        powerManager.isPowerSaveMode -> {
+            SaveData.Enabled(SaveDataReason.SYSTEM_POWER_SAVER)
         }
-        if (ConnectivityManagerCompat.getRestrictBackgroundStatus(connectivityManager)
-            == ConnectivityManagerCompat.RESTRICT_BACKGROUND_STATUS_ENABLED) {
-            return SaveData.Enabled(SaveDataReason.SYSTEM_DATA_SAVER)
+        Build.VERSION.SDK_INT >= 24 && isBackgroundDataRestricted() -> {
+            SaveData.Enabled(SaveDataReason.SYSTEM_DATA_SAVER)
         }
-        return SaveData.Disabled
+        else -> SaveData.Disabled
+    }
+
+    @RequiresApi(24)
+    private fun isBackgroundDataRestricted(): Boolean {
+        return connectivityManager.restrictBackgroundStatus ==
+            ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
     }
 }

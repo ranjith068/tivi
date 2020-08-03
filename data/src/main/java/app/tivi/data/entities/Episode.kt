@@ -19,6 +19,7 @@ package app.tivi.data.entities
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Ignore
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import org.threeten.bp.OffsetDateTime
@@ -30,11 +31,13 @@ import org.threeten.bp.OffsetDateTime
         Index(value = ["season_id"])
     ],
     foreignKeys = [
-        ForeignKey(entity = Season::class,
+        ForeignKey(
+            entity = Season::class,
             parentColumns = arrayOf("id"),
             childColumns = arrayOf("season_id"),
             onUpdate = ForeignKey.CASCADE,
-            onDelete = ForeignKey.CASCADE)
+            onDelete = ForeignKey.CASCADE
+        )
     ]
 )
 data class Episode(
@@ -54,8 +57,6 @@ data class Episode(
         val EMPTY = Episode(seasonId = 0)
     }
 
-    fun isAired() = when {
-        firstAired != null -> firstAired.isBefore(OffsetDateTime.now())
-        else -> false
-    }
+    @delegate:Ignore
+    val isAired by lazy { firstAired?.isBefore(OffsetDateTime.now()) ?: false }
 }

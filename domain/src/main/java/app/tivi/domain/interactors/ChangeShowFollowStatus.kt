@@ -24,62 +24,60 @@ import app.tivi.data.repositories.followedshows.FollowedShowsRepository
 import app.tivi.data.repositories.showimages.ShowImagesStore
 import app.tivi.data.repositories.shows.ShowStore
 import app.tivi.domain.Interactor
-import app.tivi.inject.ProcessLifetime
 import app.tivi.util.AppCoroutineDispatchers
-import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 class ChangeShowFollowStatus @Inject constructor(
     private val followedShowsRepository: FollowedShowsRepository,
     private val seasonsEpisodesRepository: SeasonsEpisodesRepository,
     private val showStore: ShowStore,
     private val showImagesStore: ShowImagesStore,
-    dispatchers: AppCoroutineDispatchers,
-    private val showTasks: ShowTasks,
-    @ProcessLifetime val processScope: CoroutineScope
+    private val dispatchers: AppCoroutineDispatchers,
+    private val showTasks: ShowTasks
 ) : Interactor<ChangeShowFollowStatus.Params>() {
-    override val scope: CoroutineScope = processScope + dispatchers.io
-
     override suspend fun doWork(params: Params) {
-        suspend fun unfollow(showId: Long) {
-            followedShowsRepository.removeFollowedShow(showId)
-            // Remove seasons, episodes and watches
-            seasonsEpisodesRepository.removeShowSeasonData(showId)
-        }
-
-        suspend fun follow(showId: Long) {
-            followedShowsRepository.addFollowedShow(showId)
-            // Update seasons, episodes and watches
-            if (!params.deferDataFetch) {
-                seasonsEpisodesRepository.updateSeasonsEpisodes(showId)
-                seasonsEpisodesRepository.updateShowEpisodeWatches(showId, forceRefresh = true)
-            }
-        }
-
-        for (showId in params.showIds) {
-            when (params.action) {
-                Action.TOGGLE -> {
-                    if (followedShowsRepository.isShowFollowed(showId)) {
-                        unfollow(showId)
-                    } else {
-                        follow(showId)
+        withContext(dispatchers.io) {
+            params.showIds.forEach { showId ->
+                when (params.action) {
+                    Action.TOGGLE -> {
+                        if (followedShowsRepository.isShowFollowed(showId)) {
+                            unfollow(showId)
+                        } else {
+                            follow(showId, params.deferDataFetch)
+                        }
                     }
+                    Action.FOLLOW -> follow(showId, params.deferDataFetch)
+                    Action.UNFOLLOW -> unfollow(showId)
                 }
-                Action.FOLLOW -> follow(showId)
-                Action.UNFOLLOW -> unfollow(showId)
+            }
+            // Finally, sync the changes to Trakt
+            val result = followedShowsRepository.syncFollowedShows()
+
+            result.added.forEach {
+                showStore.fetch(it.showId)
+                showImagesStore.fetchCollection(it.showId)
+            }
+
+            if (params.deferDataFetch) {
+                showTasks.syncFollowedShows()
             }
         }
-        // Finally, sync the changes to Trakt
-        val result = followedShowsRepository.syncFollowedShows()
+    }
 
-        result.added.forEach {
-            showStore.fetch(it.showId)
-            showImagesStore.fetchCollection(it.showId)
-        }
+    private suspend fun unfollow(showId: Long) {
+        followedShowsRepository.removeFollowedShow(showId)
+        // Remove seasons, episodes and watches
+        seasonsEpisodesRepository.removeShowSeasonData(showId)
+    }
 
-        if (params.deferDataFetch) {
-            showTasks.syncFollowedShows()
+    private suspend fun follow(showId: Long, deferDataFetch: Boolean) {
+        followedShowsRepository.addFollowedShow(showId)
+        // Update seasons, episodes and watches now if we're not deferring the fetch
+        if (!deferDataFetch) {
+            seasonsEpisodesRepository.updateSeasonsEpisodes(showId)
+            seasonsEpisodesRepository.updateShowEpisodeWatches(showId, forceRefresh = true)
         }
     }
 

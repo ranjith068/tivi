@@ -27,10 +27,7 @@ kapt {
     useBuildCache = true
 }
 
-apply plugin: 'kotlin-android-extensions'
-androidExtensions {
-    experimental = true
-}
+apply plugin: 'dagger.hilt.android.plugin'
 
 android {
     compileSdkVersion buildConfig.compileSdk
@@ -61,8 +58,8 @@ dependencies {
     implementation project(':common-imageloading')
     implementation project(':common-databinding')
 
-    implementation Libs.AndroidX.Lifecycle.extensions
-    implementation Libs.AndroidX.Lifecycle.viewmodelKtx
+    implementation Libs.AndroidX.Lifecycle.livedata
+    implementation Libs.AndroidX.Lifecycle.viewmodel
 
     implementation Libs.AndroidX.Paging.runtime
 
@@ -77,14 +74,11 @@ dependencies {
 
     implementation Libs.Google.material
 
-    implementation Libs.Dagger.androidSupport
-    kapt Libs.Dagger.compiler
-    kapt Libs.Dagger.androidProcessor
+    implementation Libs.Hilt.library
+    kapt Libs.Hilt.compiler
 
-    compileOnly Libs.AssistedInject.annotationDagger2
-    kapt Libs.AssistedInject.processorDagger2
-
-    implementation Libs.mvRx
+    implementation Libs.AndroidX.Hilt.viewmodel
+    kapt Libs.AndroidX.Hilt.compiler
 
     kapt Libs.Epoxy.processor
 }

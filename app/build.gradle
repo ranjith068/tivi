@@ -17,46 +17,37 @@
 
 import app.tivi.buildsrc.Libs
 
-ext {
-    ci = System.getenv("CI") == "true"
+plugins {
+    id 'com.android.application'
+    id 'dagger.hilt.android.plugin'
+    id 'com.github.triplet.play'
+
+    id 'kotlin-android'
+    id 'kotlin-kapt'
+
+    id 'com.google.android.gms.oss-licenses-plugin'
+    id 'androidx.navigation.safeargs.kotlin'
 }
 
-apply plugin: 'com.android.application'
+play {
+   track = 'internal'
+   defaultToAppBundles = true
+   serviceAccountCredentials = rootProject.file('release/play-account.json')
+}
 
-apply plugin: 'kotlin-android'
-
-apply plugin: 'kotlin-kapt'
 kapt {
     correctErrorTypes = true
     useBuildCache = true
 }
 
-apply plugin: 'kotlin-android-extensions'
-androidExtensions {
-    experimental = true
-}
-
-apply plugin: 'com.getkeepsafe.dexcount'
-dexcount {
-    // Only run the method counter on CI
-    enabled = ci
-}
-
-apply plugin: 'com.github.triplet.play'
-play {
-    track = 'internal'
-    defaultToAppBundles = true
-    serviceAccountCredentials = rootProject.file('release/play-account.json')
-}
-
-apply plugin: 'com.google.android.gms.oss-licenses-plugin'
-
-apply plugin: "androidx.navigation.safeargs.kotlin"
-
 def appVersionCode = propOrDef("tivi.versioncode", 17) as Integer
 println("APK version code: " + appVersionCode)
 
 def useReleaseKeystore = rootProject.file("release/app-release.jks").exists()
+
+ext {
+    ci = System.getenv("CI") == "true"
+}
 
 android {
     compileSdkVersion buildConfig.compileSdk
@@ -114,6 +105,9 @@ android {
         // Ignore any tests
         ignoreTestSources true
 
+        // TODO: remove this once https://issuetracker.google.com/issues/159733104 is fixed
+        abortOnError false
+
         // Lint doesn't seem to handle Kotlin int types + string format very well
         disable 'StringFormatMatches'
         // Seems to be broken in 4.0.0-alpha09 https://issuetracker.google.com/issues/148172219
@@ -121,7 +115,10 @@ android {
     }
 
     buildFeatures {
+        // We need to keep this enabled because submodules use it
         dataBinding true
+
+        viewBinding true
     }
 
     testOptions {
@@ -178,6 +175,7 @@ dependencies {
     implementation project(':domain')
     implementation project(':tasks')
 
+    implementation project(':ui-account')
     implementation project(':ui-discover')
     implementation project(':ui-showdetails')
     implementation project(':ui-episodedetails')
@@ -187,14 +185,14 @@ dependencies {
     implementation project(':ui-trending')
     implementation project(':ui-recommended')
     implementation project(':ui-search')
+    implementation project(':ui-settings')
 
-    implementation Libs.AndroidX.Lifecycle.extensions
-    implementation Libs.AndroidX.Lifecycle.viewmodelKtx
+    implementation Libs.AndroidX.Lifecycle.livedata
+    implementation Libs.AndroidX.Lifecycle.viewmodel
 
     implementation Libs.AndroidX.appcompat
-    implementation Libs.AndroidX.browser
     implementation Libs.AndroidX.emoji
-    implementation Libs.AndroidX.preference
+    implementation Libs.AndroidX.constraintlayout
     implementation Libs.AndroidX.Fragment.fragmentKtx
     implementation Libs.AndroidX.Navigation.fragment
     implementation Libs.AndroidX.Navigation.ui
@@ -208,19 +206,16 @@ dependencies {
     implementation Libs.timber
 
     implementation Libs.Kotlin.stdlib
-    implementation Libs.Kotlin.reflect
 
     implementation Libs.Coroutines.core
     implementation Libs.Coroutines.android
 
-    implementation Libs.Dagger.androidSupport
-    kapt Libs.Dagger.compiler
-    kapt Libs.Dagger.androidProcessor
+    implementation Libs.Hilt.library
+    kapt Libs.Hilt.compiler
 
-    compileOnly Libs.AssistedInject.annotationDagger2
-    kapt Libs.AssistedInject.processorDagger2
-
-    implementation Libs.mvRx
+    implementation Libs.AndroidX.Hilt.work
+    implementation Libs.AndroidX.Hilt.viewmodel
+    kapt Libs.AndroidX.Hilt.compiler
 
     implementation Libs.Google.firebaseCore
     implementation Libs.Google.crashlytics
@@ -231,7 +226,6 @@ dependencies {
     testImplementation Libs.junit
     testImplementation Libs.robolectric
     testImplementation Libs.AndroidX.Test.core
-    testImplementation Libs.AndroidX.Test.runner
     testImplementation Libs.AndroidX.Test.rules
     testImplementation Libs.AndroidX.Test.espressoCore
 }
@@ -248,16 +242,7 @@ android.applicationVariants.all { variant ->
     }
 }
 
-def getGitHash() {
-    def stdout = new ByteArrayOutputStream()
-    exec {
-        commandLine 'git', 'rev-parse', '--short', 'HEAD'
-        standardOutput = stdout
-    }
-    return stdout.toString().trim()
-}
-
 if (file("google-services.json").exists()) {
     apply plugin: 'com.google.gms.google-services'
-    apply plugin: 'io.fabric'
+    apply plugin: 'com.google.firebase.crashlytics'
 }

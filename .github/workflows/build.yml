@@ -1,11 +1,15 @@
 name: CI
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       TERM: dumb
       ORG_GRADLE_PROJECT_TIVI_TMDB_API_KEY: ${{ secrets.ORG_GRADLE_PROJECT_TIVI_TMDB_API_KEY }}
@@ -24,13 +28,13 @@ jobs:
 
       - uses: actions/checkout@v2
 
-      - name: set up JDK 1.8
+      - name: set up JDK
         uses: actions/setup-java@v1
         with:
-          java-version: 1.8
+          java-version: 8
 
       - name: Decrypt secrets
-        run: release/signing-setup.sh $ENCRYPT_KEY
+        run: ./release/decrypt-secrets.sh
         env:
           ENCRYPT_KEY: ${{ secrets.ENCRYPT_KEY }}
 
@@ -40,20 +44,18 @@ jobs:
       - name: Copy CI gradle.properties
         run: mkdir -p ~/.gradle ; cp .github/ci-gradle.properties ~/.gradle/gradle.properties
 
-      - uses: actions/cache@v1.1.0
-        timeout-minutes: 5
+      - uses: actions/cache@v1
+        continue-on-error: true # continue if the cache restore/upload fails
         with:
           path: ~/.gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('checksum.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
 
       - name: Build and check
-        run: ./gradlew spotlessCheck assembleDebug assembleRelease bundleRelease app:lintDebug testDebug -Ptivi.versioncode=$BUILD_NUMBER --scan
+        run: ./gradlew spotlessCheck assembleDebug assembleRelease bundleRelease app:lintDebug testDebug -Ptivi.versioncode=$BUILD_NUMBER --scan --stacktrace
 
       - name: Publish to Play Store
-        if: github.ref == 'refs/heads/master'
-        run: ./gradlew publishRelease -Ptivi.versioncode=$BUILD_NUMBER --scan
+        if: github.ref == 'refs/heads/main'
+        run: ./gradlew publishRelease -Ptivi.versioncode=$BUILD_NUMBER --scan --stacktrace
 
       - name: Create release for tags
         uses: softprops/action-gh-release@v1
@@ -67,7 +69,7 @@ jobs:
 
       - name: Clean secrets
         if: always()
-        run: release/signing-cleanup.sh
+        run: ./release/clean-secrets.sh
 
       - name: Upload build outputs
         if: always()

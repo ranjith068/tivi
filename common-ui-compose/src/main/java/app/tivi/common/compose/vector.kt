@@ -17,23 +17,52 @@
 package app.tivi.common.compose
 
 import androidx.annotation.DrawableRes
-import androidx.compose.Composable
-import androidx.ui.core.Modifier
-import androidx.ui.foundation.contentColor
-import androidx.ui.graphics.Color
-import androidx.ui.graphics.vector.DrawVector
-import androidx.ui.layout.Container
-import androidx.ui.layout.LayoutSize
-import androidx.ui.res.vectorResource
+import androidx.compose.foundation.Box
+import androidx.compose.foundation.contentColor
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.vector.VectorAsset
+import androidx.compose.ui.graphics.vector.VectorPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.vectorResource
 
 @Composable
 fun VectorImage(
-    modifier: Modifier = Modifier.None,
     @DrawableRes id: Int,
-    tint: Color = contentColor()
+    alignment: Alignment = Alignment.Center,
+    contentScale: ContentScale = ContentScale.Inside,
+    tintColor: Color = contentColor(),
+    modifier: Modifier = Modifier.wrapContentSize(align = alignment)
 ) {
-    val vector = vectorResource(id)
-    Container(modifier = modifier + LayoutSize(vector.defaultWidth, vector.defaultHeight)) {
-        DrawVector(vector, tint)
-    }
+    VectorImage(
+        vector = vectorResource(id = id),
+        alignment = alignment,
+        contentScale = contentScale,
+        tintColor = tintColor,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun VectorImage(
+    vector: VectorAsset,
+    alignment: Alignment = Alignment.Center,
+    contentScale: ContentScale = ContentScale.Inside,
+    tintColor: Color = contentColor(),
+    modifier: Modifier = Modifier.wrapContentSize(align = alignment)
+) {
+    Box(
+        modifier = modifier.clipToBounds().paint(
+            painter = VectorPainter(vector),
+            alignment = alignment,
+            contentScale = contentScale,
+            colorFilter = ColorFilter.tint(tintColor)
+        )
+    )
 }

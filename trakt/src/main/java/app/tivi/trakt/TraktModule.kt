@@ -19,40 +19,34 @@ package app.tivi.trakt
 import com.uwetrottmann.trakt5.TraktV2
 import dagger.Module
 import dagger.Provides
-import java.io.File
+import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
-import okhttp3.Cache
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 
 @Module(includes = [TraktServiceModule::class])
-class TraktModule {
+object TraktModule {
     @Provides
     @Singleton
     fun provideTrakt(
-        @Named("cache") cacheDir: File,
-        interceptor: HttpLoggingInterceptor,
-        @Named("trakt-client-id") clientId: String
-    ): TraktV2 {
-        return object : TraktV2(clientId) {
-            override fun setOkHttpClientDefaults(builder: OkHttpClient.Builder) {
-                super.setOkHttpClientDefaults(builder)
-                builder.apply {
-                    addInterceptor(interceptor)
-                    cache(Cache(File(cacheDir, "trakt_cache"), 10 * 1024 * 1024))
-                    connectTimeout(20, TimeUnit.SECONDS)
-                    readTimeout(20, TimeUnit.SECONDS)
-                    writeTimeout(20, TimeUnit.SECONDS)
-                }
-            }
+        client: OkHttpClient,
+        @Named("trakt-client-id") clientId: String,
+        @Named("trakt-client-secret") clientSecret: String,
+        @Named("trakt-auth-redirect-uri") redirectUri: String
+    ): TraktV2 = object : TraktV2(clientId, clientSecret, redirectUri) {
+        override fun okHttpClient(): OkHttpClient {
+            return client.newBuilder().apply {
+                setOkHttpClientDefaults(this)
+                connectTimeout(20, TimeUnit.SECONDS)
+                readTimeout(20, TimeUnit.SECONDS)
+                writeTimeout(20, TimeUnit.SECONDS)
+            }.build()
         }
     }
 }
 
 @Module
-class TraktServiceModule {
+object TraktServiceModule {
     @Provides
     fun provideTraktUsersService(traktV2: TraktV2) = traktV2.users()
 

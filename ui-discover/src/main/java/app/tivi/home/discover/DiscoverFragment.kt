@@ -21,13 +21,14 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.net.toUri
 import androidx.core.view.updatePadding
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.observe
 import androidx.navigation.fragment.findNavController
-import app.tivi.TiviFragmentWithBinding
+import app.tivi.FragmentWithBinding
 import app.tivi.common.imageloading.loadImageUrl
 import app.tivi.data.Entry
 import app.tivi.data.resultentities.EntryWithShow
 import app.tivi.extensions.doOnSizeChange
-import app.tivi.extensions.navigateToNavDestination
 import app.tivi.extensions.scheduleStartPostponedTransitions
 import app.tivi.extensions.toActivityNavigatorExtras
 import app.tivi.extensions.toFragmentNavigatorExtras
@@ -38,15 +39,14 @@ import app.tivi.ui.authStateToolbarMenuBinder
 import app.tivi.ui.createSharedElementHelperForItemId
 import app.tivi.ui.createSharedElementHelperForItems
 import app.tivi.ui.transitions.GridToGridTransitioner
-import com.airbnb.mvrx.fragmentViewModel
-import com.airbnb.mvrx.withState
+import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
-class DiscoverFragment : TiviFragmentWithBinding<FragmentDiscoverBinding>() {
-    private val viewModel: DiscoverViewModel by fragmentViewModel()
+@AndroidEntryPoint
+class DiscoverFragment : FragmentWithBinding<FragmentDiscoverBinding>() {
+    private val viewModel: DiscoverViewModel by viewModels()
 
-    @Inject internal lateinit var discoverViewModelFactory: DiscoverViewModel.Factory
-    @Inject internal lateinit var controller: DiscoverEpoxyController
+    @Inject @JvmField internal var controller: DiscoverEpoxyController? = null
 
     private var authStateMenuItemBinder: AuthStateMenuItemBinder? = null
 
@@ -68,14 +68,16 @@ class DiscoverFragment : TiviFragmentWithBinding<FragmentDiscoverBinding>() {
         // postponeEnterTransitionWithTimeout()
 
         binding.summaryRv.apply {
-            setController(controller)
+            setController(controller!!)
             addItemDecoration(SpacingItemDecorator(paddingLeft))
         }
 
         binding.followedAppBar.doOnSizeChange {
             binding.summaryRv.updatePadding(top = it.height)
-            binding.summarySwipeRefresh.setProgressViewOffset(true, 0,
-                it.height + binding.summarySwipeRefresh.progressCircleDiameter / 2)
+            binding.summarySwipeRefresh.setProgressViewOffset(
+                true, 0,
+                it.height + binding.summarySwipeRefresh.progressCircleDiameter / 2
+            )
             true
         }
 
@@ -87,50 +89,51 @@ class DiscoverFragment : TiviFragmentWithBinding<FragmentDiscoverBinding>() {
 
         binding.discoverToolbar.setOnMenuItemClickListener {
             when (it.itemId) {
-                R.id.home_menu_user_login -> {
-                    viewModel.onLoginClicked()
+                R.id.home_menu_user_login, R.id.home_menu_user_avatar -> {
+                    findNavController().navigate(R.id.navigation_account)
+                    true
                 }
-                R.id.home_menu_user_avatar -> {
-                    findNavController().navigateToNavDestination(R.id.navigation_settings)
-                }
+                else -> false
             }
-            true
         }
 
-        controller.callbacks = object : DiscoverEpoxyController.Callbacks {
+        controller!!.callbacks = object : DiscoverEpoxyController.Callbacks {
             override fun onTrendingHeaderClicked() {
-                withState(viewModel) { state ->
-                    val extras = binding.summaryRv.createSharedElementHelperForItems(state.trendingItems)
+                with(viewModel.currentState()) {
+                    val extras = binding.summaryRv.createSharedElementHelperForItems(trendingItems)
 
                     findNavController().navigate(
                         R.id.navigation_trending,
                         null,
                         null,
-                        extras.toFragmentNavigatorExtras())
+                        extras.toFragmentNavigatorExtras()
+                    )
                 }
             }
 
             override fun onPopularHeaderClicked() {
-                withState(viewModel) { state ->
-                    val extras = binding.summaryRv.createSharedElementHelperForItems(state.popularItems)
+                with(viewModel.currentState()) {
+                    val extras = binding.summaryRv.createSharedElementHelperForItems(popularItems)
 
                     findNavController().navigate(
                         R.id.navigation_popular,
                         null,
                         null,
-                        extras.toFragmentNavigatorExtras())
+                        extras.toFragmentNavigatorExtras()
+                    )
                 }
             }
 
             override fun onRecommendedHeaderClicked() {
-                withState(viewModel) { state ->
-                    val extras = binding.summaryRv.createSharedElementHelperForItems(state.recommendedItems)
+                with(viewModel.currentState()) {
+                    val extras = binding.summaryRv.createSharedElementHelperForItems(recommendedItems)
 
                     findNavController().navigate(
                         R.id.navigation_recommended,
                         null,
                         null,
-                        extras.toFragmentNavigatorExtras())
+                        extras.toFragmentNavigatorExtras()
+                    )
                 }
             }
 
@@ -146,10 +149,10 @@ class DiscoverFragment : TiviFragmentWithBinding<FragmentDiscoverBinding>() {
             }
 
             override fun onNextEpisodeToWatchClicked() {
-                withState(viewModel) {
-                    checkNotNull(it.nextEpisodeWithShowToWatched)
-                    val show = it.nextEpisodeWithShowToWatched.show
-                    val episode = it.nextEpisodeWithShowToWatched.episode
+                with(viewModel.currentState()) {
+                    checkNotNull(nextEpisodeWithShowToWatched)
+                    val show = nextEpisodeWithShowToWatched.show
+                    val episode = nextEpisodeWithShowToWatched.episode
                     findNavController().navigate(
                         "app.tivi://show/${show.id}/episode/${episode.id}".toUri()
                     )
@@ -163,9 +166,12 @@ class DiscoverFragment : TiviFragmentWithBinding<FragmentDiscoverBinding>() {
                 binding.summarySwipeRefresh.isRefreshing = false
             }
         }
+
+        viewModel.liveData.observe(viewLifecycleOwner, ::render)
     }
 
-    override fun invalidate(binding: FragmentDiscoverBinding) = withState(viewModel) { state ->
+    private fun render(state: DiscoverViewState) {
+        val binding = requireBinding()
         if (binding.state == null) {
             // First time we've had state, start any postponed transitions
             scheduleStartPostponedTransitions()
@@ -174,12 +180,12 @@ class DiscoverFragment : TiviFragmentWithBinding<FragmentDiscoverBinding>() {
         authStateMenuItemBinder?.bind(state.authState, state.user)
 
         binding.state = state
-        controller.state = state
+        controller!!.state = state
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        controller.clear()
+        controller?.clear()
         authStateMenuItemBinder = null
     }
 }

@@ -17,67 +17,56 @@
 package app.tivi.common.compose
 
 import android.view.View
-import androidx.compose.Composable
-import androidx.compose.Model
-import androidx.compose.ambientOf
-import androidx.compose.onCommit
-import androidx.compose.remember
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Providers
+import androidx.compose.runtime.ambientOf
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnAttach
 import androidx.core.view.doOnDetach
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.Observer
-import androidx.ui.unit.IntPx
-import androidx.ui.unit.ipx
+import androidx.lifecycle.distinctUntilChanged
+import androidx.lifecycle.map
 
-@Model
 data class InsetsHolder(
-    var left: IntPx = IntPx.Zero,
-    var top: IntPx = IntPx.Zero,
-    var right: IntPx = IntPx.Zero,
-    var bottom: IntPx = IntPx.Zero
+    val left: Int = 0,
+    val top: Int = 0,
+    val right: Int = 0,
+    val bottom: Int = 0
 ) {
+    constructor(insets: WindowInsetsCompat) : this(
+        insets.systemWindowInsetLeft,
+        insets.systemWindowInsetTop,
+        insets.systemWindowInsetRight,
+        insets.systemWindowInsetBottom
+    )
+
     val horizontal get() = right + left
     val vertical get() = top + bottom
-}
-
-fun InsetsHolder.setFrom(insets: WindowInsetsCompat) {
-    val newLeft = insets.systemWindowInsetLeft.ipx
-    if (left != newLeft) {
-        left = newLeft
-    }
-    val newTop = insets.systemWindowInsetTop.ipx
-    if (top != newTop) {
-        top = newTop
-    }
-    val newRight = insets.systemWindowInsetRight.ipx
-    if (right != newRight) {
-        right = newRight
-    }
-    val newBottom = insets.systemWindowInsetBottom.ipx
-    if (bottom != newBottom) {
-        bottom = newBottom
-    }
 }
 
 val InsetsAmbient = ambientOf { InsetsHolder() }
 
 @Composable
-fun observeInsets(liveData: LiveData<WindowInsetsCompat>) {
-    val insetsHolder = InsetsAmbient.current
-    val observer = remember {
-        Observer<WindowInsetsCompat> { insets -> insets?.let(insetsHolder::setFrom) }
-    }
-    onCommit(liveData) {
-        liveData.observeForever(observer)
-        onDispose { liveData.removeObserver(observer) }
+fun ProvideInsets(
+    liveData: LiveData<WindowInsetsCompat?>,
+    children: @Composable () -> Unit
+) {
+    val currentInsets = remember(liveData) {
+        liveData.map { if (it != null) InsetsHolder(it) else InsetsHolder() }
+            .distinctUntilChanged()
+    }.observeAsState(InsetsHolder())
+
+    Providers(InsetsAmbient provides currentInsets.value) {
+        children()
     }
 }
 
-fun View.observeWindowInsets(): LiveData<WindowInsetsCompat> {
-    val data = MutableLiveData<WindowInsetsCompat>()
+fun View.observeWindowInsets(): LiveData<WindowInsetsCompat?> {
+    val data = MutableLiveData<WindowInsetsCompat?>()
     ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
         data.value = insets
         insets

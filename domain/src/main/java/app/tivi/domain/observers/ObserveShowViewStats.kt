@@ -19,17 +19,14 @@ package app.tivi.domain.observers
 import app.tivi.data.repositories.followedshows.FollowedShowsRepository
 import app.tivi.data.views.FollowedShowsWatchStats
 import app.tivi.domain.SubjectInteractor
-import app.tivi.util.AppCoroutineDispatchers
-import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
 
 class ObserveShowViewStats @Inject constructor(
-    private val repository: FollowedShowsRepository,
-    dispatchers: AppCoroutineDispatchers
-) : SubjectInteractor<ObserveShowViewStats.Params, FollowedShowsWatchStats>() {
-    override val dispatcher = dispatchers.io
+    private val repository: FollowedShowsRepository
+) : SubjectInteractor<ObserveShowViewStats.Params, FollowedShowsWatchStats?>() {
 
-    override fun createObservable(params: Params): Flow<FollowedShowsWatchStats> {
+    override fun createObservable(params: Params): Flow<FollowedShowsWatchStats?> {
         return repository.observeShowViewStats(params.showId)
     }
 

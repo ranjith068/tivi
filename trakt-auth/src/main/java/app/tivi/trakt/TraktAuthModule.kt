@@ -19,11 +19,13 @@ package app.tivi.trakt
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import androidx.core.net.toUri
 import app.tivi.inject.ApplicationId
 import dagger.Module
 import dagger.Provides
-import javax.inject.Named
-import javax.inject.Singleton
+import dagger.hilt.InstallIn
+import dagger.hilt.android.components.ApplicationComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import net.openid.appauth.AuthorizationRequest
@@ -31,16 +33,20 @@ import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ClientAuthentication
 import net.openid.appauth.ClientSecretBasic
 import net.openid.appauth.ResponseTypeValues
+import javax.inject.Named
+import javax.inject.Singleton
 
+@InstallIn(ApplicationComponent::class)
 @Module
-class TraktAuthModule {
+object TraktAuthModule {
     @Singleton
     @Provides
     fun provideAuthConfig(): AuthorizationServiceConfiguration {
         return AuthorizationServiceConfiguration(
             Uri.parse("https://trakt.tv/oauth/authorize"),
             Uri.parse("https://trakt.tv/oauth/token"),
-            null)
+            null
+        )
     }
 
     @Provides
@@ -52,26 +58,37 @@ class TraktAuthModule {
     fun provideAuthRequest(
         serviceConfig: AuthorizationServiceConfiguration,
         @Named("trakt-client-id") clientId: String,
-        @ApplicationId applicationId: String
+        @Named("trakt-auth-redirect-uri") redirectUri: String
     ): AuthorizationRequest {
         return AuthorizationRequest.Builder(
             serviceConfig,
             clientId,
             ResponseTypeValues.CODE,
-            Uri.parse("$applicationId://${TraktConstants.URI_AUTH_CALLBACK_PATH}")
+            redirectUri.toUri()
         ).build()
     }
 
     @Singleton
+    @Named("trakt-auth-redirect-uri")
     @Provides
-    fun provideClientAuth(@Named("trakt-client-secret") clientSecret: String): ClientAuthentication {
+    fun provideAuthRedirectUri(
+        @ApplicationId applicationId: String
+    ): String = "$applicationId://${TraktConstants.URI_AUTH_CALLBACK_PATH}"
+
+    @Singleton
+    @Provides
+    fun provideClientAuth(
+        @Named("trakt-client-secret") clientSecret: String
+    ): ClientAuthentication {
         return ClientSecretBasic(clientSecret)
     }
 
     @Singleton
     @Provides
     @Named("auth")
-    fun provideAuthSharedPrefs(context: Context): SharedPreferences {
+    fun provideAuthSharedPrefs(
+        @ApplicationContext context: Context
+    ): SharedPreferences {
         return context.getSharedPreferences("trakt_auth", Context.MODE_PRIVATE)
     }
 }
